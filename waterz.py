@@ -4,61 +4,79 @@ Created on Fri Jul 22 11:07:34 2022
 
 @author: wayne
 """
+import sys
 
-import numpy as np
-import waterz
 import cv2
 import mahotas as mh
+import numpy as np
+import zarr
 
-#input image is the 4th channel image of data
-#for example our data is (c,t,z,y,x)
-t=1
-image = data[3,t,:,:,:]
-
-'''
-import h5py 
-name='silja_dataset_1_T110_predictions_fused.h5'
-f = h5py.File(name,'r+')
-key = list(f.keys())[0]
-image = f[key][3]
-'''
-
-#normalized to 255 can get better wahtershed output
-inputimage = cv2.normalize(image, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
+import waterz
 
 
+def get_fragments(image):
+    """Apply watershed to an image to get (over-)segmentation fragments.
 
-#whatershed algorithm set local minima as seed
-minima = mh.regmin(inputimage)
-markers,nr_markers = mh.label(minima)
-fragments = mh.cwatershed(inputimage, markers, return_lines=False)
+    Parameters
+    ----------
+    image: array
+        Boundary prediction image.
+    """
+    # normalized to 255 can get better watershed output
+    inputimage = cv2.normalize(image, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
 
-#normalized to 0-1 get affinity graph
-def NormalizeData(data):
-    return (data - np.min(data)) / (np.max(data) - np.min(data))
+    # watershed algorithm set local minima as seed
+    minima = mh.regmin(inputimage)
+    markers, nr_markers = mh.label(minima)
+    fragments = mh.cwatershed(inputimage, markers, return_lines=False)
+    fragments = fragments.astype('uint64')
+    return fragments
 
-# affinity graph needs 3 channel input
-affs = np.zeros((3,)+image.shape)
-pre_nor = NormalizeData(image)
 
-#Invert the picture set memberance with low affinity and cells with high affinity
-for i in range(3):
-  affs[i]=pre_nor*-1+1
+def get_affinities(image):
+    """Get affinities from boundary predictions."""
+    # normalized to 0 - 1 get affinity graph
+    # TODO Might not be necessary, since data seems to be 0 - 1 already
+    def NormalizeData(data):
+        return (data - np.min(data)) / (np.max(data) - np.min(data))
 
-# make sure correct type
-aff = affs.astype('float32')
-fragments=fragments.astype('uint64')
-'''  
-affs: numpy array, float32, 4 dimensional
+    # affinity graph needs 3 channel input, original is just 1
+    affs = np.zeros((3,) + image.shape)
+    pre_nor = NormalizeData(image)
+
+    # Invert the picture set membranes with low affinity
+    # and cells with high affinity
+    for i in range(3):
+        affs[i] = pre_nor*-1+1
+
+    # make sure correct type
+    aff = affs.astype('float32')
+    return aff
+
+
+# TODO This is basically a wrapper around waterz.agglomerate, doesn't add
+# functionality, just sets threshold, could be removed
+# TODO What is the scoring function choice + why?
+def main(affs, thresholds, gt=None, fragments=None, aff_threshold_low=0.0001,
+         aff_threshold_high=0.9999, return_merge_history=True,
+         return_region_graph=True,
+         scoring_function='OneMinus<MeanAffinity<RegionGraphType, ScoreValue>>',
+         discretize_queue=0,
+         force_rebuild=False):
+    '''
+    Parameters
+    ----------
+        affs: numpy array, float32, 4 dimensional
             The affinities as an array with affs[channel][z][y][x].
         thresholds: list of float32
-            The thresholds to compute segmentations for. For each threshold, one
+            The thresholds to compute segmentations for.
+            For each threshold, one
             segmentation is returned.
         gt: numpy array, uint32, 3 dimensional (optional)
             An optional ground-truth segmentation as an array with gt[z][y][x].
             If given, metrics
         fragments: numpy array, uint64, 3 dimensional (optional)
-            An optional volume of fragments to use, instead of the build-in 
+            An optional volume of fragments to use, instead of the build-in
             zwatershed.
         aff_threshold_low: float, default 0.0001
         aff_threshold_high: float, default 0.9999,
@@ -69,14 +87,15 @@ affs: numpy array, float32, 4 dimensional
         return_region_graph: bool
             If set to True, the returning tuple will contain the region graph
             for the returned segmentation.
-        scoring_function: string, default 'OneMinus<MeanAffinity<RegionGraphType, ScoreValue>>'
+        scoring_function: string, default
+            'OneMinus<MeanAffinity<RegionGraphType, ScoreValue>>'
             A C++ type string specifying the edge scoring function to use. See
                 https://github.com/funkey/waterz/blob/master/waterz/backend/MergeFunctions.hpp
             for available functions, and
                 https://github.com/funkey/waterz/blob/master/waterz/backend/Operators.hpp
             for operators to combine them.
         discretize_queue: int
-            If set to non-zero, a bin queue with that many bins will be used to 
+            If set to non-zero, a bin queue with that many bins will be used to
             approximate the priority queue for merge operations.
         force_rebuild:
             Force the rebuild of the module. Only needed for development.
@@ -100,9 +119,42 @@ affs: numpy array, float32, 4 dimensional
         region_graph (only if return_region_graph is True)
             A list of dictionaries with keys 'u', 'v', and 'score', indicating
             an edge between u and v with the given score.
-'''            
-thresholds=[0.2]
-for segmentations, merge_history, region_graph in waterz.agglomerate(aff, thresholds,fragments=fragments,return_merge_history = True, return_region_graph = True):
-    print(merge_history)
-    print(region_graph)
+    '''
+    # TODO how to decide the threshold?
+    thresholds = [0.2]
+    for segs, merges, regions in waterz.agglomerate(affs,
+                                                    thresholds,
+                                                    fragments=fragments,
+                                                    return_merge_history=True,
+                                                    return_region_graph=True):
+        yield segs, merges, regions
 
+
+if __name__ == "__main__":
+    """
+
+    Example
+    -------
+    import h5py
+    name='silja_dataset_1_T110_predictions_fused.h5'
+    f = h5py.File(name,'r+')
+    key = list(f.keys())[0]
+    image = f[key][3]
+    """
+    zarrfile = sys.argv[1]
+
+    z = zarr.open(zarrfile, 'r')
+
+    '''
+    Channels:
+        0: Membrane channel
+        1: Wide Field
+        2: ZO1 protein
+        3: Membrane boundary prediction
+    '''
+    # input image is the 4th channel image of data
+    # for example our data is (c,t,z,y,x)
+    # Usually normalized 0 - 1
+    # TODO iterate over time
+    t = 1
+    image = z['Raw'][3, t, :, :, :]
