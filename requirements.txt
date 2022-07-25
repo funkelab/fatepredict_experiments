@@ -1,0 +1,6 @@
+opencv-python
+pymongo
+mahotas
+numpy
+zarr
+git+https://github.com/funkey/waterz.git
