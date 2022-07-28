@@ -6,13 +6,15 @@ Created on Fri Jul 22 11:07:34 2022
 """
 import sys
 
+import configargparse
 import cv2
-import argparse
-from cv2 import threshold
 import mahotas as mh
 import numpy as np
 import zarr
+
 import waterz
+from segment_stats import encode64, segment_stats
+from write_to_db import create_cells_client
 
 
 def get_fragments(image):
@@ -126,7 +128,7 @@ def main(affs, thresholds, gt=None, fragments=None, aff_threshold_low=0.0001,
     '''
     #
     #  TODO how to decide the threshold?
-    #thresholds = [0.2,0.4]
+    # thresholds = [0.2,0.4]
     for segs, merges, regions in waterz.agglomerate(affs,
                                                     thresholds,
                                                     fragments=fragments,
@@ -134,6 +136,22 @@ def main(affs, thresholds, gt=None, fragments=None, aff_threshold_low=0.0001,
                                                     return_region_graph=True):
         yield segs, merges, regions
 
+
+def Parser():
+    parser = configargparse.ArgParser()
+    parser.add('zarrfile', required=True,
+               help='The zarr file containing the data')
+    parser.add('-c', '--config', is_config_file=True)
+    parser.add('-n', '--name', help="Project Name") # required=True
+    parser.add('--host', help="MongoDB Host Name", default=None)  # required=True)
+    parser.add('--port', help="MongoDB Port", default=None)  # required=True)
+    parser.add('--user', help="Username", default=None)  # required=True)
+    parser.add('--pass', help="Password", default=None)  # required=True)
+    parser.add('--max_volume', help="Maximum number of voxels in a cell",
+               default=25000)
+    parser.add('--deploy', action='store_true',
+               help='Whether to connect to the database or just print results')
+    return parser
 
 
 if __name__ == "__main__":
@@ -146,48 +164,119 @@ if __name__ == "__main__":
     f = h5py.File(name,'r+')
     key = list(f.keys())[0]
     image = f[key][3]
-    """
-    zarrfile = sys.argv[1]
 
-    z = zarr.open(zarrfile, 'a')
-
-    '''
-    # Todo change the parser (what are we want?)
-    parser = argparse.ArgumentParser(description='Create xxxxx')
-    parser.add_argument("-t", "--threshold",nargs='+',default=[], action='append', required=True, 
-                        help="The thresholds to compute segmentations for (list float32).")
-    args = parser.parse_args()
-    '''
-    '''
     Channels:
         0: Membrane channel
         1: Wide Field
         2: ZO1 protein
         3: Membrane boundary prediction
-    '''
+    """
+    parser = Parser()
+    args = parser.parse_args()
+
+    z = zarr.open(args.zarrfile, 'a')
     # input image is the 4th channel image of data
     # for example our data is (c,t,z,y,x)
     # Usually normalized 0 - 1
-    # TODO iterate over time
-    frags_t=[]
-    for t in range(3):
+    channel, time, *_ = z['Raw'].shape
+    frags_t = []
+    if args.deploy:
+        client, cells = create_cells_client(args.name, args.host, args.port,
+                                            args.username, args.password)
+    else:
+        cells = []
+
+    for t in range(time):
         image = z['Raw'][3, t, :, :, :]
         print(image.shape)
         affs = get_affinities(image)
         fragments = get_fragments(image)
-        thresholds = [0]
+        thresholds = [0, 100]
 
-        
-        gen=main(affs,thresholds=thresholds,fragments=fragments)
-        # the initial seg is the fragments
-        segs,_,_  = next(gen)
+        gen = main(affs, thresholds=thresholds, fragments=fragments)
+        # the initial seg is the fragments, with threshold=0
+        segs, _, _ = next(gen)
         frags_t.append(segs)
-        #_,merges,_  = next(gen)
-        
+        # Fragment values in segs starts at 1
+        ids, positions, volumes = segment_stats(fragments, t)
+        # positions
+        # Get the merges from the second, larger threshold
+        _, merges, _ = next(gen)
+
+        # DELME
+        ids = np.array(ids)
+        better_ids = ids[segs - 1]  # Same shape as segs, each
+
+        def merged_position(pos_u, pos_v, vol_u, vol_v):
+            pos_w = (pos_u + pos_v) // 2
+            # TODO weighted version
+            # Can we weigh the center of gravity just by volume or do we need
+            # the extent in all three dimensions?
+            # TODO Convert position to tuple of ints
+            return pos_w
+
+        merge_tree = np.empty(len(merges), 3)
+        merge_scores = np.empty(len(merges),)
+        # Separately store the stats for the whole merge tree!
+        merge_ids = []
+        merge_positions = {}
+        merge_volumes = {}
+        merge_parents = {}
+        for i, merge in enumerate(merges):
+            # e.g. {a: 1, b: 2, c: 1, score: 0.01}
+            a, b = merge['a'], merge['b']
+            score = merge['score']
+            u, v = ids[a], ids[b]
+            pos_u, pos_v = positions[a], positions[b]
+            vol_u, vol_v = volumes[a], volumes[b]
+            # Create the merged node
+            vol_w = vol_u + vol_v
+            pos_w = merged_position(pos_u, pos_v, vol_u, vol_v)
+            w = encode64((t, *pos_w))
+            # Replace values...
+            ids[a] = w
+            positions[a] = pos_w
+            volumes[a] = vol_w
+            # Add to merge tree
+            merge_tree[i] = u, v, w
+            merge_scores[i] = score
+            # Add to merge stats
+            # TODO Make this less ugly :)
+            merge_ids += [u, v, w]
+            merge_volumes[u] = vol_u
+            merge_volumes[v] = vol_v
+            merge_volumes[w] = vol_w
+            merge_parents[u] = w
+            merge_parents[v] = w
+            merge_parents[w] = w
+            merge_positions[u] = pos_u
+            merge_positions[v] = pos_v
+            merge_positions[w] = pos_w
+
+        for cell_id in merge_ids:
+            position = merge_positions[cell_id]
+            volume = merge_volumes[cell_id]
+            merge_parent = merge_parents[cell_id]
+            # Bigger cells are considered "over merged"
+            if volume < args.max_volume:
+                cells.append({
+                    'id': cell_id,
+                    'score': float(score),
+                    't': position[0],
+                    'z': position[1],
+                    'y': position[2],
+                    'x': position[3],
+                    'movement_vector': tuple(0, 0, 0),
+                    'merge_parent': merge_parent,
+                    'volume': volume
+                })
+
+    if not args.deploy:
+        print(cells)
+    else:
+        client.close()
+
+    # Add fragments
     z['fragments'] = np.array(frags_t)
-    print('------------------------')
-    print(len(np.unique(np.array(frags_t))))
-    print('------------------------')
-    # Todo how to save list?
-    #z['merge_tree'] = 
-    
+
+    # TODO Get all overlaps of fragments

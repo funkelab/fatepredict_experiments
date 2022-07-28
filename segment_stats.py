@@ -1,9 +1,10 @@
 import re
-import zarr
-
-from skimage.measure import regionprops, regionprops_table
 import sys
+
 import numpy as np
+import zarr
+from skimage.measure import regionprops, regionprops_table
+
 
 def encode64(c, bits=None):
     """Encodes a list c into an int64 by progressively shifting
@@ -48,15 +49,16 @@ def decode64(id64, dims, bits=None):
         id64 = id64 >> bits[d]
     return coord
 
-def segmen_stats(fragments,t):
+
+def segment_stats(fragments, t):
     regions = regionprops(fragments)
     position = []
     region_size = []
     idx = []
     for props in regions:
         z0, y0, x0 = props.centroid
-        position.append((int(z0), int(y0), int(x0)))
-        ids = encode64([t,int(z0), int(y0), int(x0)])
+        position.append((t, int(z0), int(y0), int(x0)))
+        ids = encode64([t, int(z0), int(y0), int(x0)])
         idx.append(ids)
         region_size.append(props.area)
 
@@ -71,11 +73,11 @@ if __name__ == "__main__":
     # Todo change t
     for t in range(3):
         fragments = z['fragments'][t]
-        idx,position,region_size=segmen_stats(fragments,t)
+        idx, position, region_size = segment_stats(fragments, t)
         z['fragment_stats/id/'+str(t)] = position
         z['fragment_stats/position/'+str(t)] = position
-        z['fragment_stats/size/'+str(t)] = region_size
+        z['fragment_stats/volume/'+str(t)] = region_size
 
 
 
-    
+
