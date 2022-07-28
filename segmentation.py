@@ -8,10 +8,10 @@ import sys
 
 import cv2
 import argparse
+from cv2 import threshold
 import mahotas as mh
 import numpy as np
 import zarr
-
 import waterz
 
 
@@ -65,6 +65,9 @@ def main(affs, thresholds, gt=None, fragments=None, aff_threshold_low=0.0001,
          discretize_queue=0,
          force_rebuild=False):
     '''
+    ----------
+    sudo apt install libboost-dev
+    pip install git+https://github.com/funkey/waterz.git
     Parameters
     ----------
         affs: numpy array, float32, 4 dimensional
@@ -132,6 +135,7 @@ def main(affs, thresholds, gt=None, fragments=None, aff_threshold_low=0.0001,
         yield segs, merges, regions
 
 
+
 if __name__ == "__main__":
     """
 
@@ -145,7 +149,7 @@ if __name__ == "__main__":
     """
     zarrfile = sys.argv[1]
 
-    z = zarr.open(zarrfile, 'r')
+    z = zarr.open(zarrfile, 'a')
 
     '''
     # Todo change the parser (what are we want?)
@@ -165,11 +169,25 @@ if __name__ == "__main__":
     # for example our data is (c,t,z,y,x)
     # Usually normalized 0 - 1
     # TODO iterate over time
-    t = 1
-    image = z['Raw'][3, t, :, :, :]
-    print(image.shape)
-    affs = get_affinities(image)
-    fragments = get_fragments(image)
-    #print(args.threshold)
-    gen=main(affs,thresholds=[0.1,0.4,0.6],fragments=fragments)
-    print(next(gen))
+    frags_t=[]
+    for t in range(3):
+        image = z['Raw'][3, t, :, :, :]
+        print(image.shape)
+        affs = get_affinities(image)
+        fragments = get_fragments(image)
+        thresholds = [0]
+
+        
+        gen=main(affs,thresholds=thresholds,fragments=fragments)
+        # the initial seg is the fragments
+        segs,_,_  = next(gen)
+        frags_t.append(segs)
+        #_,merges,_  = next(gen)
+        
+    z['fragments'] = np.array(frags_t)
+    print('------------------------')
+    print(len(np.unique(np.array(frags_t))))
+    print('------------------------')
+    # Todo how to save list?
+    #z['merge_tree'] = 
+    
