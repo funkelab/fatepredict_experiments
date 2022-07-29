@@ -11,7 +11,7 @@ import cv2
 import mahotas as mh
 import numpy as np
 import zarr
-
+from skimage.measure import regionprops
 import waterz
 from segment_stats import encode64, segment_stats
 from write_to_db import create_cells_client
@@ -197,6 +197,8 @@ if __name__ == "__main__":
         # the initial seg is the fragments, with threshold=0
         segs, _, _ = next(gen)
         frags_t.append(segs)
+        #Todo do we really need copy ? maybe fragments is the same?
+        seg = segs.copy()
         # Fragment values in segs starts at 1
         ids, positions, volumes = segment_stats(fragments, t)
         # positions
@@ -205,14 +207,22 @@ if __name__ == "__main__":
 
         # DELME
         ids = np.array(ids)
-        better_ids = ids[segs - 1]  # Same shape as segs, each
+        better_ids = ids[seg - 1]  # Same shape as segs, each
 
-        def merged_position(pos_u, pos_v, vol_u, vol_v):
-            pos_w = (pos_u + pos_v) // 2
+        def merged_position(fragments,a,b):
+            #pos_w = (pos_u + pos_v) // 2
             # TODO weighted version
             # Can we weigh the center of gravity just by volume or do we need
             # the extent in all three dimensions?
             # TODO Convert position to tuple of ints
+            '''
+            merge 'a' and 'b' into 'w'
+            '''
+            merge_mask = np.zeros((fragments.shape),dtype='int')
+            merge_mask[seg==a] = 1
+            merge_mask[seg==b] = 1
+            region = regionprops(merge_mask)
+            pos_w = region[0].centroid
             return pos_w
 
         merge_tree = np.empty(len(merges), 3)
@@ -224,7 +234,7 @@ if __name__ == "__main__":
         merge_parents = {}
         for i, merge in enumerate(merges):
             # e.g. {a: 1, b: 2, c: 1, score: 0.01}
-            a, b = merge['a'], merge['b']
+            a, b = merge['a']-1, merge['b']-1
             score = merge['score']
             u, v = ids[a], ids[b]
             pos_u, pos_v = positions[a], positions[b]
@@ -280,3 +290,11 @@ if __name__ == "__main__":
     z['fragments'] = np.array(frags_t)
 
     # TODO Get all overlaps of fragments
+    def overlap(frg_pre,frg_next):
+        # frg_pre : ndarray.
+        f_pre = frg_pre.flatten()
+        f_next = frg_next.flatten()
+        pairs, counts = np.unique(np.stack([f_pre, f_next]), axis=1, return_counts=True)
+        return pairs, counts
+
+
