@@ -11,8 +11,6 @@ host: "mongodb-server"
 port: 12345
 ```
 """
-import math
-
 import pymongo
 
 
