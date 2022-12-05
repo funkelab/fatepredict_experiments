@@ -84,8 +84,9 @@ def get_conflict_sets(graph):
     for root in roots:
         for leaf in leaves:
             s = nx.all_simple_paths(graph, source=leaf, target=root)
-            if len(s) > 0:
-                conflict_sets.append(tuple(s))
+            ts = tuple(s)
+            if len(ts) > 0:
+                conflict_sets.append(ts)
     return conflict_sets
 
 
