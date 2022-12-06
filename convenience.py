@@ -7,6 +7,7 @@ Combine all of the conflict sets and add a constraint with
 """
 import networkx as nx
 import pylp
+import numpy as np
 
 
 def get_merge_graph_from_array(merge_tree, scores):
@@ -66,40 +67,13 @@ def get_merge_graph(candidate_graph, t):
     return g
 
 
-def get_conflict_sets(graph):
-    """Get conflict sets from merge tree.
-
-    Nodes are in conflict if they are along the same path.
-
-    Example
-    >>> import numpy as np
-    >>> from convenience import get_conflict_set
-    """
-    # Get all leaves - no incoming edges
-    leaves = [x for x in graph.nodes() if graph.in_degree(x) == 0]
-    # Get all roots - no outgoing edges
-    roots = [x for x in graph.nodes() if graph.out_degree(x) == 0]
-    # Get all paths from a leaf to a root
-    conflict_sets = []
-    for root in roots:
-        for leaf in leaves:
-            s = nx.all_simple_paths(graph, source=leaf, target=root)
-            ts = tuple(s)
-            if len(ts) > 0:
-                conflict_sets.append(ts)
-    return conflict_sets
-
-
-def set_conflict_sets(graph, indicators, conflict_sets):
+def set_conflict_sets_constrains(graph, indicators):
     """Certain sets of nodes are mutually exclusive, e.g. they cannot be chosen
     at the same time.
-
     For example: if we choose a merged node, we cannot at the same time choose
     one of the fragments from which it was made.
-
     Constraint:
         sum( selected(node) for node in conflict_set ) <= 1
-
     Parameters
     ----------
     graph: TrackGraph
@@ -110,23 +84,77 @@ def set_conflict_sets(graph, indicators, conflict_sets):
         Each dict maps from node (int) or edge (pair of int) candidate to
         the corresponding indicator variable/index (int). Each candidate can
         have indicators of different types associated to it.
-    conflict_sets: List[Set]
-        Sets of nodes that cannot be chosen at the same time.
     """
+ 
+
+    def get_merge_graph(candidate_graph, t):
+        """Get merge graph from Linajea CandidateGraph
+        The nodes can be chosen for that time point.
+        The edges can be obtained from the "parent" attribute of the node.
+        Parameters
+        ----------
+        candidate_graph: linajea.CandidateGraph
+            The Candidate graph containing all the nodes of interest
+        t: int
+            The time to consider
+        """
+        g = nx.DiGraph()
+        nodes = [nid for nid in candidate_graph.nodes()
+                if candidate_graph.nodes[nid]['t'] == t]
+        # Iteratively add nodes
+        for nid in nodes:
+            node = candidate_graph.nodes[nid]
+            if nid not in g:
+                g.add_nodes_from(node)
+            if node['parent'] != None and node['id']:   # How we determine a root
+                g.add_edge(nid, node['parent'])
+        return g
+
+
+    def get_conflict_sets(graph):
+        """Get conflict sets from merge tree.
+        Nodes are in conflict if they are along the same path.
+        Example
+        >>> import numpy as np
+        >>> from convenience import get_conflict_set
+        """
+        # Get all leaves - no incoming edges
+        leaves = [x for x in graph.nodes() if graph.in_degree(x) == 0]
+        # Get all roots - no outgoing edges
+        roots = [x for x in graph.nodes() if graph.out_degree(x) == 0]
+        # Get all paths from a leaf to a root
+        conflict_sets = []
+        for root in roots:
+            for leaf in leaves:
+                for path in nx.all_simple_paths(graph, source=leaf, target=root):
+                    conflict_sets.append(path)
+        return conflict_sets
+    
+
+    time = []
     constraints = []
-    for cs in conflict_sets:
+    for cell in graph.nodes:
+        t = graph.nodes[cell]['t']
+        time.append(t)
 
-        constraint = pylp.LinearConstraint()
+    for t in np.unique(time):
+        merge_graph = get_merge_graph(graph,t)
+        conflict_sets = get_conflict_sets(merge_graph)
+        
+        for cs in conflict_sets:
+            constraint = pylp.LinearConstraint()
 
-        for node in cs:
-            constraint.set_coefficient(indicators["node_selected"][node], 1)
+            for node in cs:
+                constraint.set_coefficient(indicators["node_selected"][node], 1)
 
-        # Relation, value
-        constraint.set_relation(pylp.Relation.LessEqual)
-        constraint.set_value(1)
-        constraints.append(constraint)
+            # Relation, value
+            constraint.set_relation(pylp.Relation.LessEqual)
+            constraint.set_value(1)
+            constraints.append(constraint)
 
     return constraints
+
+
 
 
 if __name__ == "__main__":
