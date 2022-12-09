@@ -1,10 +1,10 @@
 import logging
 import unittest
-
+import numpy as np
 import networkx as nx
 
 import daisy
-
+import pylp
 import linajea.config
 import linajea.tracking
 import linajea.tracking.track
@@ -125,16 +125,134 @@ def get_default_node_indicator_costs(parameters, graph):
 Constrains
 
 '''
+def conflict_sets_constrains(graph, indicators,get_merge_graph_from = 'candidate graph'):
+    """Certain sets of nodes are mutually exclusive, e.g. they cannot be chosen
+    at the same time.
+    For example: if we choose a merged node, we cannot at the same time choose
+    one of the fragments from which it was made.
+    Constraint:
+        sum( selected(node) for node in conflict_set ) <= 1
+    Parameters
+    ----------
+    graph: TrackGraph
+        Graph containing the node and edge candidates, the ILP will be solved
+        for this graph.
+    indicators: dict str: dict (int or pair of int): int
+        Contains a dict for every indicator type (str).
+        Each dict maps from node (int) or edge (pair of int) candidate to
+        the corresponding indicator variable/index (int). Each candidate can
+        have indicators of different types associated to it.
+    """
+    def get_merge_graph_from_array(merge_tree, scores):
+        """Get graph representation from array representation of the merge tree
+        merge_tree: ndarray
+            (n, 3) array where n is the number of merges and each item holds
+            indices (u, v, w): u and v merge to form w.
+            We assume (and therefore do not check) that the indices are unique and
+            there are no loops.
+        scores: ndarray
+            (n,) array defining the merge score for each of the merges in the merge
+            tree
+        Example
+        -------
+        >>> import numpy as np
+        >>> from convenience import get_merge_graph
+        >>> merge_tree = np.array([[1, 2, 3], [3, 4, 5]])
+        >>> scores = np.array([0.2, 0.01])
+        >>> g = get_merge_graph(merge_tree, scores)
+        >>> g.order()
+        5
+        """
+        G = nx.DiGraph()
+
+        for (u, v, w), score in zip(merge_tree, scores):
+            G.add_node(w, score=score)
+            G.add_edge(u, w)
+            G.add_edge(v, w)
+        return G
+
+    def get_merge_graph(candidate_graph, t):
+        """Get merge graph from Linajea CandidateGraph
+        The nodes can be chosen for that time point.
+        The edges can be obtained from the "merge_parent" attribute of the node.
+        Parameters
+        ----------
+        candidate_graph: linajea.CandidateGraph
+            The Candidate graph containing all the nodes of interest
+        t: int
+            The time to consider
+        """
+        g = nx.DiGraph()
+        nodes = [nid for nid in candidate_graph.nodes()
+                if candidate_graph.nodes[nid]['t'] == t]
+        # Iteratively add nodes
+        for nid in nodes:
+            node = candidate_graph.nodes[nid]
+            if nid not in g:
+                g.add_nodes_from(node)
+            if node['merge_parent'] != None and node['id']:   # How we determine a root
+                g.add_edge(nid, node['merge_parent'])
+        return g
+
+
+    def get_conflict_sets(graph):
+        """Get conflict sets from merge tree.
+        Nodes are in conflict if they are along the same path.
+        Example
+        >>> import numpy as np
+        >>> from convenience import get_conflict_set
+        """
+        # Get all leaves - no incoming edges
+        leaves = [x for x in graph.nodes() if graph.in_degree(x) == 0]
+        # Get all roots - no outgoing edges
+        roots = [x for x in graph.nodes() if graph.out_degree(x) == 0]
+        # Get all paths from a leaf to a root
+        conflict_sets = []
+        for root in roots:
+            for leaf in leaves:
+                for path in nx.all_simple_paths(graph, source=leaf, target=root):
+                    conflict_sets.append(path)
+        return conflict_sets
+    
+
+    time = []
+    constraints = []
+    for cell in graph.nodes:
+        t = graph.nodes[cell]['t']
+        time.append(t)
+
+    for t in np.unique(time):
+        if get_merge_graph_from == 'candidate graph':
+            merge_graph = get_merge_graph(graph,t)
+        if get_merge_graph_from == 'array':
+            merge_graph = get_merge_graph_from_array(merge_tree,scores)
+
+        conflict_sets = get_conflict_sets(merge_graph)
+        
+        for cs in conflict_sets:
+            constraint = pylp.LinearConstraint()
+
+            for node in cs:
+                constraint.set_coefficient(indicators["node_selected"][node], 1)
+
+            # Relation, value
+            constraint.set_relation(pylp.Relation.LessEqual)
+            constraint.set_value(1)
+            constraints.append(constraint)
+
+    return constraints
 
 
 
 
-def get_default_constraints(config):
+
+def get_constraints(config):
     pin_constraints_fn_list = [ensure_pinned_edge]
     constraints_fn_list = [ensure_edge_endpoints, 
                                ensure_one_predecessor,
                                ensure_at_most_two_successors,
-                               ensure_split_set_for_divs]
+                               ensure_split_set_for_divs,
+                               conflict_sets_constrains]
     return (constraints_fn_list,
             pin_constraints_fn_list)
 
@@ -144,60 +262,73 @@ def get_default_constraints(config):
 
 
 if __name__ == "__main__":
-    '''x
-          3|         /-4
-          2|        /--3 --// 8
-          1|   0---1 --5 -//- 7
-          0|        \--2 /--- 6
-            ------------------------------------ t
-               0   1   2   3
-
-        Should select 0, 1, 2, 3, 5
-    '''
-
     cells = [
-            {'id': 0, 't': 0, 'z': 1, 'y': 1, 'x': 1, 'score': 2.0},
-            {'id': 1, 't': 1, 'z': 1, 'y': 1, 'x': 1, 'score': 2.0},
-            {'id': 2, 't': 2, 'z': 1, 'y': 1, 'x': 0, 'score': 2.0},
-            {'id': 3, 't': 2, 'z': 1, 'y': 1, 'x': 2, 'score': 2.0},
-            {'id': 4, 't': 2, 'z': 1, 'y': 1, 'x': 3, 'score': 2.0},
-            {'id': 5, 't': 2, 'z': 1, 'y': 1, 'x': 1, 'score': 2.0},
-            {'id': 6, 't': 3, 'z': 1, 'y': 1, 'x': 0, 'score': 2.0},
-            {'id': 7, 't': 3, 'z': 1, 'y': 1, 'x': 1, 'score': 2.0},
-            {'id': 8, 't': 3, 'z': 1, 'y': 1, 'x': 3, 'score': 2.0}
-
+        {'id': 1, 't': 0, 'z': 1, 'y': 1, 'x': 2, 'score': 0.3,'merge': 0.4,'merge_parent':None},
+        {'id': 2, 't': 0, 'z': 1, 'y': 1, 'x': 1, 'score': 1.0,'merge' :0.2,'merge_parent':1},
+        {'id': 3, 't': 0, 'z': 1, 'y': 1, 'x': 3, 'score': 1.0,'merge' :0.2,'merge_parent':1},
+        {'id': 4, 't': 0, 'z': 1, 'y': 1, 'x': 0, 'score': 2.0,'merge' :0,  'merge_parent':2},
+        {'id': 5, 't': 0, 'z': 1, 'y': 1, 'x': 2, 'score': 2.0,'merge' :0,  'merge_parent':2}
     ]
 
+
+    graph1 = nx.DiGraph()
+    graph1.add_nodes_from([(cell['id'], cell) for cell in cells])
+    
+    cells = [
+        {'id': 6, 't': 1, 'z': 1, 'y': 1, 'x': 3, 'score': 0.5,'merge': 0.4,'merge_parent':None},
+        {'id': 7, 't': 1, 'z': 1, 'y': 1, 'x': 1, 'score': 1.0,'merge': 0.2,'merge_parent':6},
+        {'id': 8, 't': 1, 'z': 1, 'y': 1, 'x': 3, 'score': 1.0,'merge': 0,'merge_parent':6},
+        {'id': 9, 't': 1, 'z': 1, 'y': 1, 'x': 4, 'score': 1.0,'merge': 0,'merge_parent':6},
+        {'id': 10, 't': 1, 'z': 1, 'y': 1, 'x': 0, 'score': 2.0,'merge': 0,'merge_parent':7},
+        {'id': 11, 't': 1, 'z': 1, 'y': 1, 'x': 2, 'score': 2.0,'merge': 0,'merge_parent':7}
+    ]   
+
+
+    graph2 = nx.DiGraph()
+    graph2.add_nodes_from([(cell['id'], cell) for cell in cells])
     edges = [
-                {'source': 1, 'target': 0, 'score': 1.0,
-                'overlap': 1.0},
-                {'source': 2, 'target': 1, 'score': 1.0,
-                'overlap': 0.4},
-                {'source': 3, 'target': 1, 'score': 1.0,
-                'overlap': 0.3},
-                {'source': 4, 'target': 1, 'score': 1.0,
-                'overlap': 0.1},
-                {'source': 5, 'target': 1, 'score': 1.0,
-                'overlap': 0.9},
-                {'source': 6, 'target': 2, 'score': 1.0,
-                'overlap': 0.9},
-                {'source': 7, 'target': 5, 'score': 1.0,
-                'overlap': 0.8},
-                {'source': 7, 'target': 2, 'score': 1.0,
-                'overlap': 0.4},
-                {'source': 8, 'target': 3, 'score': 1.0,
-                'overlap': 1.0},
-                {'source': 8, 'target': 2, 'score': 1.0,
-                'overlap': 0.1},
-                {'source': 8, 'target': 5, 'score': 1.0,
-                'overlap': 0.6},
-    ]
+            {'source': 6, 'target': 1, 'overlap': 1},
+            {'source': 7, 'target': 1, 'overlap': 0.33},
+            {'source': 8, 'target': 1, 'overlap': 0.33},
+            {'source': 9, 'target': 1, 'overlap': 0.33},
+            {'source': 10, 'target': 1, 'overlap': 0.16},
+            {'source': 11, 'target': 1, 'overlap': 0.16},
 
-    roi = daisy.Roi((0, 0, 0, 0), (4, 5, 5, 5))
+            {'source': 6, 'target': 2, 'overlap': 0.5},
+            {'source': 7, 'target': 2, 'overlap': 0.66},
+            {'source': 8, 'target': 2, 'overlap': 0.5},
+            {'source': 9, 'target': 2, 'overlap': 0},
+            {'source': 10, 'target': 2, 'overlap': 0.33},
+            {'source': 11, 'target': 2, 'overlap': 0.33},
+
+            {'source': 6, 'target': 3, 'overlap': 0.5},
+            {'source': 7, 'target': 3, 'overlap': 0.01},
+            {'source': 8, 'target': 3, 'overlap': 0.5},
+            {'source': 9, 'target': 3, 'overlap': 0.9},
+            {'source': 10, 'target': 3, 'overlap': 0.001},
+            {'source': 11, 'target': 3, 'overlap': 0.0},
+
+            {'source': 6, 'target': 4, 'overlap': 0.33},
+            {'source': 7, 'target': 4, 'overlap': 0.8},
+            {'source': 8, 'target': 4, 'overlap': 0.01},
+            {'source': 9, 'target': 4, 'overlap': 0.02},
+            {'source': 10, 'target': 4, 'overlap': 0.5},
+            {'source': 11, 'target': 4, 'overlap': 0.5},
+
+            {'source': 6, 'target': 5, 'overlap': 0.3},
+            {'source': 7, 'target': 5, 'overlap': 0.1},
+            {'source': 8, 'target': 5, 'overlap': 0.75},
+            {'source': 9, 'target': 5, 'overlap': 0.001},
+            {'source': 10, 'target':5, 'overlap': 0.02},
+            {'source': 11, 'target':5, 'overlap': 0.03},
+
+    ]
     graph = nx.DiGraph()
-    graph.add_nodes_from([(cell['id'], cell) for cell in cells])
+    graph.add_nodes_from(graph1.nodes(data=True))
+    graph.add_nodes_from(graph2.nodes(data=True))
     graph.add_edges_from([(edge['source'], edge['target'], edge)
                             for edge in edges])
+    roi = daisy.Roi((0, 0, 0, 0), (4, 5, 5, 5))
     graph = linajea.tracking.TrackGraph(graph, frame_key='t', roi=roi)
     ps = {
         "track_cost": 4.0,
@@ -214,16 +345,14 @@ if __name__ == "__main__":
     solve_config.timeout =1000
     config = TrackingConfig(solve_config)
     
-    
-    import pylp
+    constrs = get_constraints(config)
+
     
     s = pylp.LinearSolver(10, pylp.Binary, preference=pylp.Scip)
     s.set_num_threads(2)
 
 
-    constrs = get_default_constraints(config)
-    
-
+    graph = linajea.tracking.TrackGraph(graph, frame_key='t', roi=roi)
     linajea.tracking.track(
                 graph,
                 config,
@@ -234,6 +363,9 @@ if __name__ == "__main__":
                 constraints_fns=constrs[0],
                 pin_constraints_fns=constrs[1]
                 )
+    constrs = get_constraints(config)
+    
+
 
     selected_edges = []
     edges=[]
@@ -242,28 +374,7 @@ if __name__ == "__main__":
         if data['selected']:
             selected_edges.append((u, v))
 
-    print('''x
-          3|         /-4
-          2|        /--3 --// 8
-          1|   0---1 --5 -//- 7
-          0|        \--2 /--- 6
-            ------------------------------------ t
-               0   1   2   3
-
-        Should select 0, 1, 2, 3, 5
-    ''')
     print('all edges graph:',edges)
     print('selected edges:',selected_edges)
     
-
-
-
-
-
-
-
-
-
-
-
 
