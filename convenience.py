@@ -67,7 +67,7 @@ def get_merge_graph(candidate_graph, t):
     return g
 
 
-def set_conflict_sets_constrains(graph, indicators):
+def conflict_sets_constrains(graph, indicators):
     """Certain sets of nodes are mutually exclusive, e.g. they cannot be chosen
     at the same time.
     For example: if we choose a merged node, we cannot at the same time choose
