@@ -14,7 +14,7 @@ def segment_stats(fragments, t):
     for props in regions:
         z0, y0, x0 = props.centroid
         position.append((t, int(z0), int(y0), int(x0)))
-        ids = encode64([t, int(z0), int(y0), int(x0)])
+        ids = encode64((t, int(z0), int(y0), int(x0)))
         idx.append(ids)
         region_size.append(props.area)
 

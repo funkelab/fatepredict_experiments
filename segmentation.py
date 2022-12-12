@@ -60,15 +60,15 @@ def get_affinities(image):
 
 def Parser():
     parser = configargparse.ArgParser()
-    parser.add('zarrfile', required=True,
-               help='The zarr file containing the data')
+    parser.add('zarrfile', 
+                help='The zarr file containing the data')
     parser.add('-c', '--config', is_config_file=True)
     parser.add('-n', '--name', help="Project Name")  # required=True
     parser.add('--host', help="MongoDB Host Name", default=None)
     # , required=True)
     parser.add('--port', help="MongoDB Port", default=None)  # required=True)
     parser.add('--user', help="Username", default=None)  # required=True)
-    parser.add('--pass', help="Password", default=None)  # required=True)
+    parser.add('--password', help="Password", default=None)  # required=True)
     parser.add('--max_volume', help="Maximum number of voxels in a cell",
                default=25000)
     parser.add('--deploy', action='store_true',
@@ -104,7 +104,7 @@ if __name__ == "__main__":
     frags_t = []
     if args.deploy:
         client, cells = create_cells_client(args.name, args.host, args.port,
-                                            args.username, args.password)
+                                            args.user, args.password)
     else:
         cells = []
 
@@ -120,9 +120,9 @@ if __name__ == "__main__":
                                  return_region_graph=True)
         # the initial seg is the fragments, with threshold=0
         segs, _, _ = next(gen)
-        frags_t.append(segs)
-        # TODO do we really need copy ? maybe fragments is the same?
+        # prevent generator change data in RAM 
         seg = segs.copy()
+        frags_t.append(seg)
         # Fragment values in segs starts at 1
         ids, positions, volumes = segment_stats(fragments, t)
         # positions
@@ -132,6 +132,8 @@ if __name__ == "__main__":
         def merged_position(fragments, a, b):
             """
             Merge 'a' and 'b' into 'w'
+
+            return a center point: tuple float 
             """
             merge_mask = np.zeros((fragments.shape), dtype='int')
             merge_mask[seg == a] = 1
@@ -140,8 +142,8 @@ if __name__ == "__main__":
             pos_w = region[0].centroid
             return pos_w
 
-        merge_tree = np.empty(len(merges), 3)
-        merge_scores = np.empty(len(merges),)
+        merge_tree = np.empty((len(merges), 3),dtype=int)
+        merge_scores = np.empty((len(merges),))
         # Separately store the stats for the whole merge tree!
         merge_ids = []
         merge_positions = {}
@@ -149,50 +151,79 @@ if __name__ == "__main__":
         merge_parents = {}
         for i, merge in enumerate(merges):
             # e.g. {a: 1, b: 2, c: 1, score: 0.01}
-            a, b = merge['a']-1, merge['b']-1
+            a, b = merge['a']-1, merge['b']-1 # match the ID index 0,1,2,3,.... order
             score = merge['score']
             u, v = ids[a], ids[b]
             pos_u, pos_v = positions[a], positions[b]
             vol_u, vol_v = volumes[a], volumes[b]
             # Create the merged node
             vol_w = vol_u + vol_v
-            pos_w = merged_position(pos_u, pos_v, vol_u, vol_v)
-            w = encode64((t, *pos_w))
-            # Replace values...
-            ids[a] = w
-            positions[a] = pos_w
+            pos_w = merged_position(fragments,a+1,b+1) # index+1 = label
+            pos_w = (t, int(pos_w[0]),int(pos_w[1]),int(pos_w[2]))
+            #covert to int for encode
+            w = encode64(pos_w)
+            # Replace values... since a,b merge into a 
+            positions[a] = (pos_w)
             volumes[a] = vol_w
             # Add to merge tree
             merge_tree[i] = u, v, w
             merge_scores[i] = score
             # Add to merge stats
-            merge_ids += [u, v, w]
+            merge_ids.append((u, v, w))
             merge_volumes.update({u: vol_u, v: vol_v, w: vol_w})
             merge_parents.update({u: w, v: w, w: w})
             merge_positions.update({u: pos_u, v: pos_v, w: pos_w})
-
-        for cell_id in merge_ids:
+        
+        print(len(merge_ids))
+        print(len(np.unique(merge_ids)))
+        print(len(merge_ids)==len(np.unique(merge_ids)))
+        for cell_id in np.unique(merge_tree):
             position = merge_positions[cell_id]
             volume = merge_volumes[cell_id]
             merge_parent = merge_parents[cell_id]
             # Bigger cells are considered "over merged"
+            # mangodb can not encode numpy.int try int()
             if volume < args.max_volume:
-                cells.append({
-                    'id': cell_id,
-                    'score': float(score),
-                    't': position[0],
-                    'z': position[1],
-                    'y': position[2],
-                    'x': position[3],
-                    'movement_vector': tuple(0, 0, 0),
-                    'merge_parent': merge_parent,
-                    'volume': volume
-                })
+                if not args.deploy:
+                    cells.append({
+                        'id': int(cell_id),
+                        'score': float(score),
+                        't': int(position[0]),
+                        'z': int(position[1]),
+                        'y': int(position[2]),
+                        'x': int(position[3]),
+                        'movement_vector': (0, 0, 0),
+                        'merge_parent': int(merge_parent),
+                        'volume': int(volume)
+                    })
+                else:
+                    cells.insert_one({
+                        'id': int(cell_id),
+                        'score': float(score),
+                        't': int(position[0]),
+                        'z': int(position[1]),
+                        'y': int(position[2]),
+                        'x': int(position[3]),
+                        'movement_vector': (0, 0, 0),
+                        'merge_parent': int(merge_parent),
+                        'volume': int(volume)
+                    })
 
     if not args.deploy:
-        print(cells)
+
+        
+        import csv
+        keys = cells[0].keys()
+
+        with open('demo_cells.csv', 'w', newline='') as output_file:
+            dict_writer = csv.DictWriter(output_file, keys)
+            dict_writer.writeheader()
+            dict_writer.writerows(cells)
+        #print(cells)
+
     else:
         client.close()
 
     # Add fragments
     z['fragments'] = np.array(frags_t)
+    # Add 
