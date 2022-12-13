@@ -174,9 +174,6 @@ if __name__ == "__main__":
             merge_parents.update({u: w, v: w, w: w})
             merge_positions.update({u: pos_u, v: pos_v, w: pos_w})
         
-        print(len(merge_ids))
-        print(len(np.unique(merge_ids)))
-        print(len(merge_ids)==len(np.unique(merge_ids)))
         for cell_id in np.unique(merge_tree):
             position = merge_positions[cell_id]
             volume = merge_volumes[cell_id]
