@@ -60,8 +60,7 @@ def get_affinities(image):
 
 def Parser():
     parser = configargparse.ArgParser()
-    parser.add('zarrfile', 
-                help='The zarr file containing the data')
+    parser.add('zarrfile', help='The zarr file containing the data')
     parser.add('-c', '--config', is_config_file=True)
     parser.add('-n', '--name', help="Project Name")  # required=True
     parser.add('--host', help="MongoDB Host Name", default=None)
@@ -133,7 +132,7 @@ if __name__ == "__main__":
             """
             Merge 'a' and 'b' into 'w'
 
-            return a center point: tuple float 
+            return a center point: tuple float
             """
             merge_mask = np.zeros((fragments.shape), dtype='int')
             merge_mask[seg == a] = 1
@@ -158,11 +157,11 @@ if __name__ == "__main__":
             vol_u, vol_v = volumes[a], volumes[b]
             # Create the merged node
             vol_w = vol_u + vol_v
-            pos_w = merged_position(fragments,a+1,b+1) # index+1 = label
-            pos_w = (t, int(pos_w[0]),int(pos_w[1]),int(pos_w[2]))
-            #covert to int for encode
+            pos_w = merged_position(fragments, a+1, b+1) # index+1 = label
+            pos_w = (t, int(pos_w[0]), int(pos_w[1]), int(pos_w[2]))
+            # covert to int for encode
             w = encode64(pos_w)
-            # Replace values... since a,b merge into a 
+            # Replace values... since a,b merge into a
             positions[a] = (pos_w)
             volumes[a] = vol_w
             # Add to merge tree
@@ -173,7 +172,7 @@ if __name__ == "__main__":
             merge_volumes.update({u: vol_u, v: vol_v, w: vol_w})
             merge_parents.update({u: w, v: w, w: w})
             merge_positions.update({u: pos_u, v: pos_v, w: pos_w})
-        
+
         for cell_id in np.unique(merge_tree):
             position = merge_positions[cell_id]
             volume = merge_volumes[cell_id]
@@ -181,46 +180,23 @@ if __name__ == "__main__":
             # Bigger cells are considered "over merged"
             # mangodb can not encode numpy.int try int()
             if volume < args.max_volume:
-                if not args.deploy:
-                    cells.append({
-                        'id': int(cell_id),
-                        'score': float(score),
-                        't': int(position[0]),
-                        'z': int(position[1]),
-                        'y': int(position[2]),
-                        'x': int(position[3]),
-                        'movement_vector': (0, 0, 0),
-                        'merge_parent': int(merge_parent),
-                        'volume': int(volume)
-                    })
-                else:
-                    cells.insert_one({
-                        'id': int(cell_id),
-                        'score': float(score),
-                        't': int(position[0]),
-                        'z': int(position[1]),
-                        'y': int(position[2]),
-                        'x': int(position[3]),
-                        'movement_vector': (0, 0, 0),
-                        'merge_parent': int(merge_parent),
-                        'volume': int(volume)
-                    })
+                cells.insert_one({
+                    'id': int(cell_id),
+                    'score': float(score),
+                    't': int(position[0]),
+                    'z': int(position[1]),
+                    'y': int(position[2]),
+                    'x': int(position[3]),
+                    'movement_vector': (0, 0, 0),
+                    'merge_parent': int(merge_parent),
+                    'volume': int(volume)
+                })
 
-    if not args.deploy:
-
-        
-        import csv
-        keys = cells[0].keys()
-
-        with open('demo_cells.csv', 'w', newline='') as output_file:
-            dict_writer = csv.DictWriter(output_file, keys)
-            dict_writer.writeheader()
-            dict_writer.writerows(cells)
-        #print(cells)
-
-    else:
-        client.close()
+    #if args.deploy:
+        #client.close()
 
     # Add fragments
-    z['fragments'] = np.array(frags_t)
-    # Add 
+    z['Fragments'] = np.array(frags_t)
+    # Add merge tree
+    z['Merge_tree/Merge'] = merge_tree
+    z['Merge_tree/Scoring'] = merge_scores
