@@ -118,13 +118,13 @@ if __name__ == "__main__":
     else:
         cells = []
 
-    for t in range(2):
+    for t in range(time):
         image = z['Raw'][3, t, :, :, :]
         print(image.shape)
         affs = get_affinities(image)
         fragments = get_fragments(image)
         thresholds = [0, 100]
-
+        frag_t.append(get_fragments(image))
         gen = waterz.agglomerate(affs, thresholds, fragments=fragments,
                                  return_merge_history=True,
                                  return_region_graph=True)
@@ -132,7 +132,6 @@ if __name__ == "__main__":
         segs, _, _ = next(gen)
         # prevent generator change data in RAM 
         seg = segs.copy()
-        frag_t.append(seg)
         print('labels:', len(np.unique(seg)))
         # Fragment values in segs starts at 1
         ids, positions, volumes = segment_stats(fragments, t)
