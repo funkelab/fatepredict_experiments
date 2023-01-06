@@ -74,7 +74,7 @@ def Parser():
     parser.add('zarrfile', help='The zarr file containing the data')
     parser.add('-c', '--config', is_config_file=True)
     parser.add('-n', '--name', help="Project Name")  # required=True
-    parser.add('--host', help="MongoDB Host Name", default=None)
+    parser.add('--host', help="MongoDB Host Name", default= 'localhost')
     # , required=True)
     parser.add('--port', help="MongoDB Port", default=None)  # required=True)
     parser.add('--user', help="Username", default=None)  # required=True)
