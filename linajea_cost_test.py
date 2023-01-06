@@ -114,8 +114,8 @@ def get_merge_graph_from_array(merge_tree, scores):
 
     for (u, v, w), score in zip(merge_tree, scores):
         G.add_node(w, score=score)
-        G.add_edge(u, w)
-        G.add_edge(v, w)
+        G.add_edge(w, u)
+        G.add_edge(w, v)
     return G
 
 
