@@ -10,7 +10,7 @@ import linajea.utils
 from linajea.tracking.cost_functions import is_nth_frame
 from linajea.tracking.cost_functions import is_close_to_roi_border
 from linajea.tracking.constraints import ensure_edge_endpoints, ensure_at_most_two_successors, ensure_one_predecessor, ensure_pinned_edge, ensure_split_set_for_divs
-
+from funlib.math import encode64, decode64
 
 class TrackingConfig():
     def __init__(self, solve_config):
@@ -113,9 +113,18 @@ def get_merge_graph_from_array(merge_tree, scores):
     G = nx.DiGraph()
 
     for (u, v, w), score in zip(merge_tree, scores):
-        G.add_node(w, score=score)
+        pos = decode64(int(w), dims=5, bits=[9,12,12,12,19])
+        G.add_node(w, t =pos[0], z=pos[1], y=pos[2], x=pos[3], score=score)
         G.add_edge(w, u)
         G.add_edge(w, v)
+
+    # set leave node attributes
+    for node in G.nodes:
+        if 'score' not in G.nodes[node]:
+            nx.set_node_attributes(G, {node: {'score': 0}}, 'score')
+            pos = decode64(int(node), dims=5, bits=[9,12,12,12,19])
+            nx.set_node_attributes(G, {node: {'t': pos[0], 'z': pos[1], 'y': pos[2], 'x': pos[3]}}, 'score')
+
     return G
 
 

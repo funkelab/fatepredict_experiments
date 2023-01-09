@@ -23,8 +23,8 @@ def merge_stats(fragments, t):
 
     z0, y0, x0 = regions[0].centroid
     position = ((t, int(z0), int(y0), int(x0)))
-    # TODO add 0 0 0 for shifting.
-    ids = encode64((t, int(z0), int(y0), int(x0), regions[0].area, 0, 0, 0))
+    # TODO add bits for shifting.
+    ids = encode64((t, int(z0), int(y0), int(x0), regions[0].area),bits=[9,12,12,12,19])
 
     return ids, position, regions[0].area
 
@@ -154,8 +154,8 @@ if __name__ == "__main__":
             region = regionprops(merge_mask)
             z, y, x = region[0].centroid
             position = (t, int(z), int(y), int(x))
-            # TODO add 0 0 0 for shifting
-            id = encode64((t, int(z), int(y), int(x), int(region[0].area), 0, 0, 0))
+            # TODO shifting bits can be set by parameter.
+            id = encode64((t, int(z), int(y), int(x), int(region[0].area)),bits=[9,12,12,12,19])
             return id, position, region[0].area
         
         def mask(img, label):
