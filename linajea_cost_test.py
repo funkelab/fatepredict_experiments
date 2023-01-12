@@ -88,9 +88,8 @@ def get_node_indicator_costs(parameters, graph):
                 parameters.track_cost,
                 zero_if_true=lambda obj: (
                     is_nth_frame(graph.begin)(obj) or
-                    (config.solve.check_node_close_to_roi and
                      is_close_to_roi_border(
-                         graph.roi, parameters.max_cell_move)(obj))))],
+                         graph.roi, parameters.max_cell_move)(obj)))],
         "node_split":  [
             constant_costs_fn(1)]
     }
@@ -337,3 +336,4 @@ if __name__ == "__main__":
 
     print('all edges graph:', edges)
     print('selected edges:', selected_edges)
+
