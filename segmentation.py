@@ -14,9 +14,22 @@ import zarr
 from funlib.math import encode64
 from skimage.measure import regionprops
 
-from segment_stats import segment_stats
+
 from write_to_db import create_cells_client
 
+def segment_stats(fragments, t):
+    regions = regionprops(fragments)
+    position = []
+    region_size = []
+    idx = []
+    for props in regions:
+        z0, y0, x0 = props.centroid
+        position.append((t, int(z0), int(y0), int(x0)))
+        ids = encode64((t, int(z0), int(y0), int(x0), props.area),bits=[9,12,12,12,19])
+        idx.append(ids)
+        region_size.append(props.area)
+        
+    return np.array(idx), np.array(position), np.array(region_size)
 
 def merge_stats(fragments, t):
     regions = regionprops(fragments)
