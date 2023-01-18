@@ -120,9 +120,8 @@ def get_merge_graph_from_array(merge_tree, scores):
     # set leave node attributes
     for node in G.nodes:
         if 'score' not in G.nodes[node]:
-            nx.set_node_attributes(G, {node: {'score': 0}}, 'score')
             pos = decode64(int(node), dims=5, bits=[9,12,12,12,19])
-            nx.set_node_attributes(G, {node: {'t': pos[0], 'z': pos[1], 'y': pos[2], 'x': pos[3]}}, 'score')
+            nx.set_node_attributes(G, {node: {'t': pos[0], 'z': pos[1], 'y': pos[2], 'x': pos[3], 'score': 0}})
 
     return G
 
@@ -290,7 +289,7 @@ if __name__ == "__main__":
                          for edge in edges])
 
     roi = daisy.Roi((0, 0, 0, 0), (4, 5, 5, 5))
-
+    
     # input graph
     graph = linajea.tracking.TrackGraph(graph, frame_key='t', roi=roi)
 
