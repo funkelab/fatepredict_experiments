@@ -60,21 +60,18 @@ def add_nodes_from_merge_tree(G1,G2):
 if __name__ == "__main__":
 
     file_name = "/groups/funke/home/xuz2/Alice_demo_2.zarr"
-    z = zarr.open ( '/groups/funke/home/xuz2/Alice_demo_2.zarr' , 'r' )
-
+    z = zarr.open ( file_name, 'r' )
     fragments = z['Fragments'][:]
     raw = z['Raw'][:]
     #track = z['gt_trackimage']
     print(z.tree(level=2))
     
-    t_begin, t_end = 0,2
-    frg= fragments[:]
     # fragments_edge
     #graph_fragments = nx.DiGraph()
     candidate_edge = {}
-    graph_fragments=nx.Graph()
+    graph_fragments=nx.DiGraph()
 
-    for t in range(t_begin, t_end):
+    for t in range(fragments.shape[0]-1):
         
         pre = t 
         nex = t + 1
@@ -89,13 +86,21 @@ if __name__ == "__main__":
         merge_tree_pre = get_merge_graph_from_array(merge_tree_pre,scores_pre)
         merge_tree_nex = get_merge_graph_from_array(merge_tree_nex,scores_nex)
 
+
         graph_fragments = add_nodes_from_merge_tree(merge_tree_pre,graph_fragments)
         graph_fragments = add_nodes_from_merge_tree(merge_tree_nex,graph_fragments)
 
         # find overlaping pairs
-        pairs, counts = overlap (frg[pre], frg[nex]) 
-        for p,c in zip(pairs,counts):
-            graph_fragments.add_edge(p[0], p[1], overlap = c)
+        pairs, counts = overlap (fragments[pre], fragments[nex]) 
+        # p is label not the ID!!!!
+
+        for (label_pre, label_nex), count in zip(pairs, counts):
+            id_pre = ids_pre[int(label_pre-1)]
+            id_nex = ids_nex[int(label_nex-1)]
+            graph_fragments.add_edge(id_nex, id_pre, source = id_nex, target = id_pre, overlap = count)
+
+
+        
         
         # iterate tree to extract edge
         root = provide_root(merge_tree_pre)
@@ -109,18 +114,46 @@ if __name__ == "__main__":
                 count = connect_edge(sub_a,sub_b,pairs,counts)
                 # add edegs
                 if count != 0:
-                    graph_fragments.add_edge(a, b, overlap = count)
+                    graph_fragments.add_edge(b, a, source = b, target = a, overlap = count)
                 #print('add',a,b , 'count',count)
+        
+    
+    
+        
+    
+    #all_pre_cells = cells_by_t[pre]
+
+    #merge_graph=get_merge_graph(graph,t)
+    '''
+    if len(cells_by_t[pre]) == 0 or len(cells_by_t[nex]) == 0:
+
+        logger.debug("There are no edges between these frames, skipping")
+        continue
+    
+    # create edge for merge_tree leave nodes between two frame
+    for (label_pre, label_nex), count in zip(pairs, counts):
+        id_pre = ids_pre[int(label_pre-1)]
+        id_nex = ids_nex[int(label_nex-1)]
+        #graph_fragments.add_edge(id_nex, id_pre, overlap = count)
+
+        #label = ids_pre.index[id_ore]+1
+            
+    '''        
+                
+    
+    # 3 graph
+
     
     
     roi = daisy.Roi((0, 0, 0, 0), (3, 15, 25, 25))
 
     # input graph
     graph = linajea.tracking.TrackGraph(graph_fragments, frame_key='t', roi=roi)
+
     ps = {
-            "track_cost": 4.0,
+            "track_cost": 1.0,
             "weight_edge_score": -0.1,
-            "weight_node_score": -0.1,
+            "weight_node_score": 0 ,
             "selection_constant": -1.0,
             "max_cell_move": 0.0,
             "block_size": [5, 100, 100, 100],
@@ -132,11 +165,8 @@ if __name__ == "__main__":
                                                 context=[2, 100, 100, 100])
 
     solve_config.solver_type = None
+    solve_config.timeout = 100000
     
-
-
-    import linajea
-    print(linajea.__file__)
 
 
 #solve_config.solver_type = None
@@ -156,7 +186,30 @@ if __name__ == "__main__":
                     )
 
     
-    #all_pre_cells = cells_by_t[pre]
+    #save solution graph
+    G = nx.DiGraph()
+    for u, v, data in graph.edges(data=True):
+        #print(u,v,data)
+        if data['selected']:
+            G.add_node(u, **graph.nodes[u])
+            G.add_node(v, **graph.nodes[v])
+            G.add_edge(u,v,**data)
+            if graph.nodes[u]['score'] != 0:
+                print(u,'has socre',graph.nodes[u]['score'])
+    #nx.write_gexf(G, "solution_graph/Alice_demo_2_solution_3.gexf")
+
+    # print result
+    selected_edges = []
+    edges = []
+    for u, v, data in graph.edges(data=True):
+        edges.append((u, v))
+        if data['selected']:
+            selected_edges.append((u, v))
+
+    print('the number of selected edges: ', len(selected_edges))
+    #print('selected edges:', selected_edges)
 
 
-
+    #check soluthon
+    #print(G.nodes(data=True))
+        
