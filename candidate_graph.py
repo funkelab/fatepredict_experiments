@@ -34,13 +34,19 @@ def iterate_tree(graph,r):
     iter_list.reverse()
     return iter_list
 
-def connect_edge(sub_a,sub_b,pairs,score):
+def connect_edge(sub_a,sub_b,ids_pre,ids_nex,pairs,score):
+    # create edges for connecting the node a in merge tree merge_pre and node a in merge tree merge_nex
     count=0
     for a in sub_a:
         for b in sub_b:
-            if (a,b) in pairs:
-                ind = pairs.index((a,b))
-                count += score[ind] 
+            if a in list(ids_pre) and b in list(ids_nex):
+                label_a = list(ids_pre).index(a)+1
+                label_b = list(ids_nex).index(b)+1
+                ind = np.where(np.all(pairs == [[label_a,label_b]], axis=1))
+                if len(ind[0]>0):
+                    #a,b is id will not be show in pairs
+                    index = ind[0].item()
+                    count += score[index] 
     return count
 
 def add_nodes_from_merge_tree(G1,G2):
@@ -92,7 +98,7 @@ if __name__ == "__main__":
 
         # find overlaping pairs
         pairs, counts = overlap (fragments[pre], fragments[nex]) 
-        # p is label not the ID!!!!
+        # pairs is label not the ID!!!!
 
         for (label_pre, label_nex), count in zip(pairs, counts):
             id_pre = ids_pre[int(label_pre-1)]
@@ -103,57 +109,49 @@ if __name__ == "__main__":
         
         
         # iterate tree to extract edge
+        
         root = provide_root(merge_tree_pre)
+        # set_oder to iterate merge_tree
         iter_list_A = iterate_tree(merge_tree_pre,root[0])
         root = provide_root(merge_tree_nex)
         iter_list_B = iterate_tree(merge_tree_nex,root[0])
+
+        # iterate two merge_tree and connect new edges
         for a in iter_list_A:
             sub_a = iterate_tree(merge_tree_pre,a)
             for b in iter_list_B: 
                 sub_b = iterate_tree(merge_tree_nex,b)
-                count = connect_edge(sub_a,sub_b,pairs,counts)
+                # create edges for connecting the node a in merge tree merge_pre and node a in merge tree merge_nex
+                count = connect_edge(sub_a,sub_b,ids_pre,ids_nex,pairs,counts)
                 # add edegs
                 if count != 0:
                     graph_fragments.add_edge(b, a, source = b, target = a, overlap = count)
-                #print('add',a,b , 'count',count)
+                    #print('add',a,b , 'count',count)
+        print('The candidate graph has %d nodes and %d edges' % (graph_fragments.number_of_edges, graph_fragments.number_of_nodes))
         
     
     
-        
-    
-    #all_pre_cells = cells_by_t[pre]
-
-    #merge_graph=get_merge_graph(graph,t)
-    '''
-    if len(cells_by_t[pre]) == 0 or len(cells_by_t[nex]) == 0:
-
-        logger.debug("There are no edges between these frames, skipping")
-        continue
-    
-    # create edge for merge_tree leave nodes between two frame
-    for (label_pre, label_nex), count in zip(pairs, counts):
-        id_pre = ids_pre[int(label_pre-1)]
-        id_nex = ids_nex[int(label_nex-1)]
-        #graph_fragments.add_edge(id_nex, id_pre, overlap = count)
-
-        #label = ids_pre.index[id_ore]+1
-            
-    '''        
                 
     
     # 3 graph
 
-    
+    # put to solver
     
     roi = daisy.Roi((0, 0, 0, 0), (3, 15, 25, 25))
 
     # input graph
     graph = linajea.tracking.TrackGraph(graph_fragments, frame_key='t', roi=roi)
+    for u, v, data in graph.edges(data=True):
+        if graph.nodes[u]['score'] != 0.0001:
+                print(u,'has socre',graph.nodes[u]['score'])
+
+    
+    #print(graph.edges(data=True))
 
     ps = {
-            "track_cost": 1.0,
+            "track_cost": 4.0,
             "weight_edge_score": -0.1,
-            "weight_node_score": 0 ,
+            "weight_node_score": -0.1,
             "selection_constant": -1.0,
             "max_cell_move": 0.0,
             "block_size": [5, 100, 100, 100],
