@@ -1,6 +1,7 @@
 import zarr
 import daisy
 import numpy as np
+import time
 import networkx as nx
 from linajea_cost_test import get_merge_graph_from_array
 from funlib.math import encode64, decode64
@@ -50,21 +51,25 @@ def connect_edge(sub_a,sub_b,ids_pre,ids_nex,pairs,score):
     return count
 
 def add_nodes_from_merge_tree(G1,G2):
-        for node in G1.nodes():
-                # Add the node to G2, copying over the attributes
-                G2.add_node(node, **G1.nodes[node])
-                # Check if the node has any incoming edges in G1
-                parent = None
-                for edge in G1.in_edges(node):
-                        parent = edge[0]
-                # update the node with `parent`
-                G2.nodes[node]['parent'] = parent
-                G2.nodes[node]['id'] = node
-        return G2
+    ''''
+    G1: merge graph
+    G2: candidate graph
+    '''
+    for node in G1.nodes():
+            # Add the node to G2, copying over the attributes
+            G2.add_node(node, **G1.nodes[node])
+            # Check if the node has any incoming edges in G1
+            parent = None
+            for edge in G1.in_edges(node):
+                    parent = edge[0]
+            # update the node with `parent`
+            G2.nodes[node]['parent'] = parent
+            G2.nodes[node]['id'] = node
+    return G2
 
 
 if __name__ == "__main__":
-
+    
     file_name = "/groups/funke/home/xuz2/Alice_demo_2.zarr"
     z = zarr.open ( file_name, 'r' )
     fragments = z['Fragments'][:]
@@ -100,12 +105,13 @@ if __name__ == "__main__":
         pairs, counts = overlap (fragments[pre], fragments[nex]) 
         # pairs is label not the ID!!!!
 
+        '''
         for (label_pre, label_nex), count in zip(pairs, counts):
             id_pre = ids_pre[int(label_pre-1)]
             id_nex = ids_nex[int(label_nex-1)]
             graph_fragments.add_edge(id_nex, id_pre, source = id_nex, target = id_pre, overlap = count)
 
-
+        '''
         
         
         # iterate tree to extract edge
@@ -127,6 +133,7 @@ if __name__ == "__main__":
                 if count != 0:
                     graph_fragments.add_edge(b, a, source = b, target = a, overlap = count)
                     #print('add',a,b , 'count',count)
+
         print('The candidate graph has %d nodes and %d edges' % (graph_fragments.number_of_edges, graph_fragments.number_of_nodes))
         
     
@@ -205,7 +212,7 @@ if __name__ == "__main__":
             selected_edges.append((u, v))
 
     print('the number of selected edges: ', len(selected_edges))
-    #print('selected edges:', selected_edges)
+    print('selected edges:', selected_edges)
 
 
     #check soluthon
