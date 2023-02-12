@@ -181,14 +181,14 @@ def connect_edge(sub_a,sub_b,ids_pre,ids_nex,pairs,score):
     return count
 
 def add_nodes_from_merge_tree(G1,G2):
-        for node in G1.nodes():
-                # Add the node to G2, copying over the attributes
-                G2.add_node(node, **G1.nodes[node])
-                # Check if the node has any incoming edges in G1
-                parent = None
-                for edge in G1.in_edges(node):
-                        parent = edge[0]
-                # update the node with `parent`
-                G2.nodes[node]['parent'] = parent
-                G2.nodes[node]['id'] = node
-        return G2
+    for node in G1.nodes():
+            # Add the node to G2, copying over the attributes
+            G2.add_node(node, **G1.nodes[node])
+            # Check if the node has any incoming edges in G1
+            parent = None
+            for edge in G1.in_edges(node):
+                    parent = edge[0]
+            # update the node with `parent`
+            G2.nodes[node]['parent'] = parent
+            G2.nodes[node]['id'] = node
+    return G2
