@@ -5,6 +5,7 @@ import numpy as np
 import daisy
 from .daisy_check_functions import write_done, check_function
 import linajea
+import networkx as nx
 from linajea_cost_test import get_merge_graph_from_array
 
 logger = logging.getLogger(__name__)
@@ -61,8 +62,8 @@ def extract_edges_blockwise(linajea_config):
 
     logger.info("Starting block-wise processing...")
 
-    container = daisy.prepare_ds(
-                        data,
+    container = daisy.open_ds(
+                        data.datafile.filename,
                         'Fragments')
 
 
@@ -116,6 +117,8 @@ def extract_edges_blockwise(linajea_config):
                     # add edegs
                     if count != 0:
                         graph.add_edge(b, a, source = b, target = a, overlap = count)
+                        graph.add_node_from(merge_tree_pre[a])
+                        graph.add_node_from(merge_tree_nex[b])
             
             graph.write_edges(block.write_roi)
 

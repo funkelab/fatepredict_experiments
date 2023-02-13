@@ -121,7 +121,7 @@ def get_merge_graph_from_array(merge_tree, scores):
     for node in G.nodes:
         if 'score' not in G.nodes[node]:
             pos = decode64(int(node), dims=5, bits=[9,12,12,12,19])
-            nx.set_node_attributes(G, {node: {'t': pos[0], 'z': pos[1], 'y': pos[2], 'x': pos[3], 'score': 0}})
+            nx.set_node_attributes(G, {node: {'t': pos[0], 'z': pos[1], 'y': pos[2], 'x': pos[3], 'score': 0.0001}})
 
     return G
 
