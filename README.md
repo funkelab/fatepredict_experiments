@@ -19,3 +19,32 @@ We recommend creating a dedicated python environment e.g. with `conda`.
 - [ ] Extracting edges between time points
 - [ ] Writing candidate graph to a Mongo DB
 - [ ] Apply `linajea` for tracking
+
+
+## mango DB 
+MangoDB database for linux [Download :link:](https://www.mongodb.com/docs/manual/administration/install-community/)
+Set a local `db` [VSCODE extension :link:](https://code.visualstudio.com/docs/azure/mongodb)
+
+
+> [color=#9e4ed8] **Zarr**
+
+* Raw (c,t,z,y,x)
+* Groundtruth_segmentation (t,z,y,x)
+* Fragment (t,z,y,x) -> Each fragment is unique
+* Merge tree `<per frame>`
+    * Merge (n,3) (u,v,w) -> u and v merge to w
+    * Scoring (n,) 
+* Fragment_stats `<per frame>`
+    * id (n,) -> fragment id
+    * Position (n,3) -> (z,y,x)
+    * Volume -> fragment region size
+    * Overlap count and pair list
+* Groundtruth tracks
+    * Node_IDs (n) -> unique id for node
+    * Node_position (n,3) -> (z,y,x)
+    * Node_parent -> id of node parent
+* gt_node (n,2) -> (id,label) node `id` has `label`
+* Transfermations `<per frame>` 4 by 4 affine matrix
+* ==Tracks== :star:
+    * id -> segments' id
+    * parents
