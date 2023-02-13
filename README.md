@@ -25,8 +25,7 @@ We recommend creating a dedicated python environment e.g. with `conda`.
 MangoDB database for linux [Download :link:](https://www.mongodb.com/docs/manual/administration/install-community/)
 Set a local `db` [VSCODE extension :link:](https://code.visualstudio.com/docs/azure/mongodb)
 
-
-> [color=#9e4ed8] **Zarr**
+## Zarr structure
 
 * Raw (c,t,z,y,x)
 * Groundtruth_segmentation (t,z,y,x)
@@ -45,6 +44,6 @@ Set a local `db` [VSCODE extension :link:](https://code.visualstudio.com/docs/az
     * Node_parent -> id of node parent
 * gt_node (n,2) -> (id,label) node `id` has `label`
 * Transfermations `<per frame>` 4 by 4 affine matrix
-* ==Tracks== :star:
+* Tracks :star:
     * id -> segments' id
     * parents
