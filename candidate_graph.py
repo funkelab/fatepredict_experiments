@@ -8,6 +8,13 @@ from funlib.math import encode64, decode64
 import linajea
 from linajea_cost_test import get_edge_indicator_costs, get_node_indicator_costs, get_constraints
 
+
+import time
+import logging
+
+logger = logging.getLogger(__name__)
+
+
 class TrackingConfig():
     def __init__(self, solve_config):
         self.solve = solve_config
@@ -35,9 +42,30 @@ def iterate_tree(graph,r):
     iter_list.reverse()
     return iter_list
 
-def connect_edge(sub_a,sub_b,ids_pre,ids_nex,pairs,score):
-    # create edges for connecting the node a in merge tree merge_pre and node a in merge tree merge_nex
+def connect_edge(A,B,merge_tree_pre,merge_tree_nex,ids_pre,ids_nex,pairs,counts):
+    '''
+    
+    provide all predecessors of node r 
+
+    Args
+    ---
+    A,B: graph node id
+    
+    merge_tree_pre,merge_tree_nex : nx.DiGraph()
+
+    ids_pre,ids_nex : ndarray from zarr file Fragment_stats/id/pre and Fragment_stats/id/nex
+
+    pairs : list from func overlap 
+    
+    counts : list from func overlap
+
+    '''
+    
     count=0
+    sub_a = iterate_tree(merge_tree_pre,A)
+    sub_b = iterate_tree(merge_tree_nex,B)
+    A_area = decode64(int(A),dims=5,bits=[9,12,12,12,19])[4]
+    B_area = decode64(int(B),dims=5,bits=[9,12,12,12,19])[4]
     for a in sub_a:
         for b in sub_b:
             if a in list(ids_pre) and b in list(ids_nex):
@@ -47,8 +75,9 @@ def connect_edge(sub_a,sub_b,ids_pre,ids_nex,pairs,score):
                 if len(ind[0]>0):
                     #a,b is id will not be show in pairs
                     index = ind[0].item()
-                    count += score[index] 
-    return count
+                    count += counts[index]
+
+    return count/(A_area + B_area - count)
 
 def add_nodes_from_merge_tree(G1,G2):
     ''''
@@ -60,6 +89,7 @@ def add_nodes_from_merge_tree(G1,G2):
             G2.add_node(node, **G1.nodes[node])
             # Check if the node has any incoming edges in G1
             parent = None
+            # if no edges in node the parent is its self
             for edge in G1.in_edges(node):
                     parent = edge[0]
             # update the node with `parent`
@@ -70,7 +100,7 @@ def add_nodes_from_merge_tree(G1,G2):
 
 if __name__ == "__main__":
     
-    file_name = "/groups/funke/home/xuz2/Alice_demo_2.zarr"
+    file_name = "/groups/funke/home/xuz2/anno_alice_T2030.zarr"
     z = zarr.open ( file_name, 'r' )
     fragments = z['Fragments'][:]
     raw = z['Raw'][:]
@@ -82,8 +112,10 @@ if __name__ == "__main__":
     candidate_edge = {}
     graph_fragments=nx.DiGraph()
 
+    # set a timer
+    start_time = time.time()
+
     for t in range(fragments.shape[0]-1):
-        
         pre = t 
         nex = t + 1
         z = zarr.open(file_name,'r')
@@ -121,7 +153,6 @@ if __name__ == "__main__":
         iter_list_A = iterate_tree(merge_tree_pre,root[0])
         root = provide_root(merge_tree_nex)
         iter_list_B = iterate_tree(merge_tree_nex,root[0])
-
         # iterate two merge_tree and connect new edges
         for a in iter_list_A:
             sub_a = iterate_tree(merge_tree_pre,a)
@@ -132,13 +163,16 @@ if __name__ == "__main__":
                 # add edegs
                 if count != 0:
                     graph_fragments.add_edge(b, a, source = b, target = a, overlap = count)
-                    #print('add',a,b , 'count',count)
+                    print('add',a,b , 'count',count)
 
-        print('The candidate graph has %d nodes and %d edges' % (graph_fragments.number_of_edges, graph_fragments.number_of_nodes))
+                    print(" iterating time: ", time.time() - start_time)
+    
+    nx.write_gexf(graph_fragments, "anno_alice_T2030_candidategrah.gexf")
+    print('The candidate graph was saved and it cost:',time.time() - start_time)
         
     
     
-                
+          
     
     # 3 graph
 
@@ -201,7 +235,7 @@ if __name__ == "__main__":
             G.add_edge(u,v,**data)
             if graph.nodes[u]['score'] != 0:
                 print(u,'has socre',graph.nodes[u]['score'])
-    #nx.write_gexf(G, "solution_graph/Alice_demo_2_solution_3.gexf")
+    nx.write_gexf(G, "solution_graph/Alice_anno_solution.gexf")
 
     # print result
     selected_edges = []

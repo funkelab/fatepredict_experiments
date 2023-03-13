@@ -7,6 +7,11 @@ from .daisy_check_functions import write_done, check_function
 import linajea
 import networkx as nx
 from linajea_cost_test import get_merge_graph_from_array
+import time
+from .coordinate import Coordinate
+from .roi import Roi
+from .freezable import Freezable
+from .array import Array
 
 logger = logging.getLogger(__name__)
 
@@ -36,9 +41,7 @@ def extract_edges_blockwise(linajea_config):
     
 
     # set roi
-    extract_roi = extract_roi.grow(
-            daisy.Coordinate(linajea_config.solve.context),
-            daisy.Coordinate(linajea_config.solve.context))
+
 
     # block size in world units
     block_write_roi = daisy.Roi(
@@ -51,8 +54,8 @@ def extract_edges_blockwise(linajea_config):
     neg_context = daisy.Coordinate((1,) + (max_edge_move_th,)*3)
 
 
-    input_roi = extract_roi.grow(neg_context, pos_context)
-    block_read_roi = block_write_roi.grow(neg_context, pos_context)
+    input_roi = extract_roi
+    block_read_roi = block_write_roi
 
     logger.info("Following ROIs in world units:")
     logger.info("Input ROI       = %s", input_roi)
@@ -62,10 +65,15 @@ def extract_edges_blockwise(linajea_config):
 
     logger.info("Starting block-wise processing...")
 
+
+    
+    
+
     container = daisy.open_ds(
                         data.datafile.filename,
-                        'Fragments')
-
+                        'Fragments'
+                        )
+    
 
     def extract_edges_in_block(linajea_config, block):
 
@@ -76,14 +84,15 @@ def extract_edges_blockwise(linajea_config):
         
         graph = graph_provider[block.read_roi]
 
-        fragments = container[block.read_roi]
+        fragments = container.data[block.read_roi]
+        
         t_begin = block.read_roi.begin[0]
         t_end = block.read_roi.end[0]
         for t in range(t_begin,t_end-1):
             pre = t 
             nex = t + 1
 
-            z = zarr.open(linajea_config.inference_data.data_source.datafile,'r')
+            z = zarr.open(data.datafile.filename,'r')
             ids_pre = z['Fragment_stats/id/'+str(pre)]
             ids_nex = z['Fragment_stats/id/'+str(nex)]
             merge_tree_pre = z['Merge_tree/Merge/'+str(pre)]
@@ -195,3 +204,130 @@ def add_nodes_from_merge_tree(G1,G2):
             G2.nodes[node]['parent'] = parent
             G2.nodes[node]['id'] = node
     return G2
+
+
+def open_ds(filename: str, ds_name: str, mode: str = "r"):
+    """Open a Zarr, N5, or HDF5 dataset as an :class:`Array`. If the
+    dataset has attributes ``resolution`` and ``offset``, those will be
+    used to determine the meta-information of the returned array.
+    Args:
+        filename:
+            The name of the container "file" (which is a directory for Zarr and
+            N5).
+        ds_name:
+            The name of the dataset to open.
+    Returns:
+        A :class:`Array` pointing to the dataset.
+    """
+
+    if filename.endswith(".zarr") or filename.endswith(".zip"):
+        assert (
+            not filename.endswith(".zip") or mode == "r"
+        ), "Only reading supported for zarr ZipStore"
+
+        logger.debug("opening zarr dataset %s in %s", ds_name, filename)
+        try:
+            ds = zarr.open(filename, mode=mode)[ds_name]
+        except Exception as e:
+            logger.error("failed to open %s/%s" % (filename, ds_name))
+            raise e
+
+        voxel_size, offset = _read_voxel_size_offset(ds, ds.order)
+        shape = Coordinate(ds.shape[-len(voxel_size) :])
+        roi = Roi(offset, voxel_size * shape)
+
+        chunk_shape = ds.chunks
+
+        logger.debug("opened zarr dataset %s in %s", ds_name, filename)
+        return Array(ds, roi, voxel_size, chunk_shape=chunk_shape)
+
+    elif filename.endswith(".n5"):
+        logger.debug("opening N5 dataset %s in %s", ds_name, filename)
+        ds = zarr.open(filename, mode=mode)[ds_name]
+
+        voxel_size, offset = _read_voxel_size_offset(ds, "F")
+        shape = Coordinate(ds.shape[-len(voxel_size) :])
+        roi = Roi(offset, voxel_size * shape)
+
+        chunk_shape = ds.chunks
+
+        logger.debug("opened N5 dataset %s in %s", ds_name, filename)
+        return Array(ds, roi, voxel_size, chunk_shape=chunk_shape)
+
+
+
+    else:
+        logger.error("don't know data format of %s in %s", ds_name, filename)
+        raise RuntimeError("Unknown file format for %s" % filename)
+
+
+def _read_voxel_size_offset(ds, order="C"):
+    voxel_size = None
+    offset = None
+    dims = None
+
+    if "resolution" in ds.attrs:
+        voxel_size = Coordinate(ds.attrs["resolution"])
+        dims = len(voxel_size)
+    elif "scale" in ds.attrs:
+        voxel_size = Coordinate(ds.attrs["scale"])
+        dims = len(voxel_size)
+    elif "pixelResolution" in ds.attrs:
+        voxel_size = Coordinate(ds.attrs["pixelResolution"]["dimensions"])
+        dims = len(voxel_size)
+
+    elif "transform" in ds.attrs:
+        # Davis saves transforms in C order regardless of underlying
+        # memory format (i.e. n5 or zarr). May be explicitly provided
+        # as transform.ordering
+        transform_order = ds.attrs["transform"].get("ordering", "C")
+        voxel_size = Coordinate(ds.attrs["transform"]["scale"])
+        if transform_order != order:
+            voxel_size = Coordinate(voxel_size[::-1])
+        dims = len(voxel_size)
+
+    if "offset" in ds.attrs:
+        offset = Coordinate(ds.attrs["offset"])
+        if dims is not None:
+            assert dims == len(
+                offset
+            ), "resolution and offset attributes differ in length"
+        else:
+            dims = len(offset)
+
+    elif "transform" in ds.attrs:
+        transform_order = ds.attrs["transform"].get("ordering", "C")
+        offset = Coordinate(ds.attrs["transform"]["translate"])
+        if transform_order != order:
+            offset = Coordinate(offset[::-1])
+
+    if dims is None:
+        dims = len(ds.shape)
+
+    if voxel_size is None:
+        voxel_size = Coordinate((1,) * dims)
+
+    if offset is None:
+        offset = Coordinate((0,) * dims)
+
+    if order == "F":
+        offset = Coordinate(offset[::-1])
+        voxel_size = Coordinate(voxel_size[::-1])
+
+    if voxel_size is not None and (offset / voxel_size) * voxel_size != offset:
+        # offset is not a multiple of voxel_size. This is often due to someone defining
+        # offset to the point source of each array element i.e. the center of the rendered
+        # voxel, vs the offset to the corner of the voxel.
+        # apparently this can be a heated discussion. See here for arguments against
+        # the convention we are using: http://alvyray.com/Memos/CG/Microsoft/6_pixel.pdf
+        logger.debug(
+            f"Offset: {offset} being rounded to nearest voxel size: {voxel_size}"
+        )
+        offset = (
+            (Coordinate(offset) + (Coordinate(voxel_size) / 2)) / Coordinate(voxel_size)
+        ) * Coordinate(voxel_size)
+        logger.debug(f"Rounded offset: {offset}")
+
+    return Coordinate(voxel_size), Coordinate(offset)
+
+

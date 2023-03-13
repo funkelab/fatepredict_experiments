@@ -46,7 +46,7 @@ def solve_blockwise(linajea_config):
     _verify_parameters(parameters)
     # block_size is identical for all parameters
 
-    # block_size = [ 15, 512, 512, 712,]
+    # block_size = [ 2, 512, 512, 712,]
 
     block_size = daisy.Coordinate(parameters[0].block_size)
 
