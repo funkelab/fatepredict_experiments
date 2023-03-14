@@ -14,6 +14,14 @@ sudo apt install libboost-dev
 Python requirements are listed in `requirements.txt`, and can be installed with `pip`.
 We recommend creating a dedicated python environment e.g. with `conda`.
 
+We recomand using conda env by running the following command:
+```
+conda create --name fatepredict python pytorch pylp -c pytorch -c funkey
+conda activate fatepredict
+cd <your clone repo dir>
+pip install -r fatepredict_experiments/requirements.txt 
+```
+
 ## TODO
 - [x] Watershed + Waterz script
 - [ ] Extracting edges between time points
