@@ -25,7 +25,7 @@ def segment_stats(fragments, t):
     for props in regions:
         z0, y0, x0 = props.centroid
         position.append((t, int(z0), int(y0), int(x0)))
-        ids = encode64((t, int(z0), int(y0), int(x0), props.area),bits=[9,12,12,12,19])
+        ids = encode64((t, int(z0), int(y0), int(x0), int(props.area)),bits=[9,12,12,12,19])
         idx.append(ids)
         region_size.append(props.area)
         
@@ -37,7 +37,7 @@ def merge_stats(fragments, t):
     z0, y0, x0 = regions[0].centroid
     position = ((t, int(z0), int(y0), int(x0)))
     # TODO add bits for shifting.
-    ids = encode64((t, int(z0), int(y0), int(x0), regions[0].area),bits=[9,12,12,12,19])
+    ids = encode64((t, int(z0), int(y0), int(x0), int(regions[0].area)),bits=[9,12,12,12,19])
 
     return ids, position, regions[0].area
 
