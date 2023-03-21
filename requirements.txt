@@ -1,12 +1,10 @@
 configargparse
 mahotas
 numpy
+Cython
 opencv-python
 pymongo
 scikit-image
-git+https://github.com/funkey/waterz.git
-git+https://github.com/funkelab/funlib.math
-Cython
 networkx
 toml
 scipy
@@ -16,6 +14,8 @@ tensorflow
 zarr>=2.10.2
 sklearn
 
+git+https://github.com/funkey/waterz.git
+git+https://github.com/funkelab/funlib.math
 -e git+https://github.com/funkelab/linajea.git#egg=linajea
 -e git+https://github.com/abred/daisy@ab7b82054126a50ab4ad5dcf2ef885b02d33aab8#egg=daisy
 -e git+https://github.com/funkelab/funlib.run#egg=funlib.run

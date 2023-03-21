@@ -84,7 +84,7 @@ def extract_edges_blockwise(linajea_config):
         
         graph = graph_provider[block.read_roi]
 
-        fragments = container.data[block.read_roi]
+        fragments = container[block.read_roi].to_ndarray()
         
         t_begin = block.read_roi.begin[0]
         t_end = block.read_roi.end[0]

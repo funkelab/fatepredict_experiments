@@ -206,7 +206,7 @@ if __name__ == "__main__":
             merge_positions.update({u: pos_u, v: pos_v, w: pos_w})
 
         # add Merge_tree to zarr
-        z['Merge_tree/Merge/'+str(t)] = merge_tree
+        z['Merge_tree/Merge/'+str(t)] = merge_tree image = z['Raw'][3, t, :, :, :]
         z['Merge_tree/Scoring/'+str(t)] = merge_scores
 
         for cell_id in np.unique(merge_tree):

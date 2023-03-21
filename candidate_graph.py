@@ -97,6 +97,68 @@ def add_nodes_from_merge_tree(G1,G2):
             G2.nodes[node]['id'] = node
     return G2
 
+def create_candidate_graph(file_name):
+    z = zarr.open ( file_name, 'r' )
+    fragments = z['Fragments'][:]
+    print(z.tree(level=2))
+    graph_fragments=nx.DiGraph()
+    start_time = time.time()
+    for t in range(fragments.shape[0]-1):
+        pre = t 
+        nex = t + 1
+        z = zarr.open(file_name,'r')
+        ids_pre = z['Fragment_stats/id/'+str(pre)]
+        ids_nex = z['Fragment_stats/id/'+str(nex)]
+        merge_tree_pre = z['Merge_tree/Merge/'+str(pre)]
+        merge_tree_nex = z['Merge_tree/Merge/'+str(nex)]
+        scores_pre = z['Merge_tree/Scoring/'+str(pre)]
+        scores_nex = z['Merge_tree/Scoring/'+str(nex)]
+
+        merge_tree_pre = get_merge_graph_from_array(merge_tree_pre,scores_pre)
+        merge_tree_nex = get_merge_graph_from_array(merge_tree_nex,scores_nex)
+
+
+        graph_fragments = add_nodes_from_merge_tree(merge_tree_pre,graph_fragments)
+        graph_fragments = add_nodes_from_merge_tree(merge_tree_nex,graph_fragments)
+
+        # find overlaping pairs
+        pairs, counts = overlap (fragments[pre], fragments[nex]) 
+        # pairs is label not the ID!!!!
+
+        '''
+        for (label_pre, label_nex), count in zip(pairs, counts):
+            id_pre = ids_pre[int(label_pre-1)]
+            id_nex = ids_nex[int(label_nex-1)]
+            graph_fragments.add_edge(id_nex, id_pre, source = id_nex, target = id_pre, overlap = count)
+
+        '''
+        
+        
+        # iterate tree to extract edge
+        
+        root = provide_root(merge_tree_pre)
+        # set_oder to iterate merge_tree
+        iter_list_A = iterate_tree(merge_tree_pre,root[0])
+        root = provide_root(merge_tree_nex)
+        iter_list_B = iterate_tree(merge_tree_nex,root[0])
+        # iterate two merge_tree and connect new edges
+        for a in iter_list_A:
+            sub_a = iterate_tree(merge_tree_pre,a)
+            for b in iter_list_B: 
+                sub_b = iterate_tree(merge_tree_nex,b)
+                # create edges for connecting the node a in merge tree merge_pre and node a in merge tree merge_nex
+                count = connect_edge(a,b,merge_tree_pre,merge_tree_nex,ids_pre,ids_nex,pairs,counts)
+                # add edegs
+                if count != 0:
+                    graph_fragments.add_edge(b, a, source = b, target = a, overlap = count)
+                    print('add',a,b , 'count',count)
+
+                    print(" iterating time: ", time.time() - start_time)
+    
+    #nx.write_gexf(graph_fragments, "anno_alice_T2030_candidategrah.gexf")
+    print('The candidate graph was saved and it cost:',time.time() - start_time)
+    return(graph_fragments)
+
 
 if __name__ == "__main__":
     
@@ -159,7 +221,7 @@ if __name__ == "__main__":
             for b in iter_list_B: 
                 sub_b = iterate_tree(merge_tree_nex,b)
                 # create edges for connecting the node a in merge tree merge_pre and node a in merge tree merge_nex
-                count = connect_edge(sub_a,sub_b,ids_pre,ids_nex,pairs,counts)
+                count = connect_edge(a,b,merge_tree_pre,merge_tree_nex,ids_pre,ids_nex,pairs,counts)
                 # add edegs
                 if count != 0:
                     graph_fragments.add_edge(b, a, source = b, target = a, overlap = count)

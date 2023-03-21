@@ -145,7 +145,7 @@ def get_merge_graph(candidate_graph, t):
         node = candidate_graph.nodes[nid]
         if nid not in g:
             g.add_nodes_from(node)
-        if node['parent'] != nid and node['id']:   # How we determine a root as node['parent'] = None
+        if node['parent'] != None and node['id']:   # How we determine a root as node['parent'] = None
             g.add_edge(nid, node['parent'])
     return g
 
