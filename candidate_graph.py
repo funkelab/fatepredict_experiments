@@ -88,7 +88,7 @@ def add_nodes_from_merge_tree(G1,G2):
             # Add the node to G2, copying over the attributes
             G2.add_node(node, **G1.nodes[node])
             # Check if the node has any incoming edges in G1
-            parent = None
+            parent = node
             # if no edges in node the parent is its self
             for edge in G1.in_edges(node):
                     parent = edge[0]

@@ -121,7 +121,7 @@ def get_merge_graph_from_array(merge_tree, scores):
     for node in G.nodes:
         if 'score' not in G.nodes[node]:
             pos = decode64(int(node), dims=5, bits=[9,12,12,12,19])
-            nx.set_node_attributes(G, {node: {'t': pos[0], 'z': pos[1], 'y': pos[2], 'x': pos[3], 'score': 0.0001}})
+            nx.set_node_attributes(G, {node: {'t': pos[0], 'z': pos[1], 'y': pos[2], 'x': pos[3], 'score': 0.0001}}) # set the fragments with a small value
 
     return G
 
@@ -145,7 +145,8 @@ def get_merge_graph(candidate_graph, t):
         node = candidate_graph.nodes[nid]
         if nid not in g:
             g.add_nodes_from(node)
-        if node['parent'] != None and node['id']:   # How we determine a root as node['parent'] = None
+        if node['parent'] != nid and node['id']:   
+        # determine a root as node['parent'] = nid in candidate_graph func add_nodes_from_merge_tree()
             g.add_edge(nid, node['parent'])
     return g
 
