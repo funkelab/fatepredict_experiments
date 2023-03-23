@@ -85,16 +85,16 @@ def add_nodes_from_merge_tree(G1,G2):
     G2: candidate graph
     '''
     for node in G1.nodes():
-            # Add the node to G2, copying over the attributes
-            G2.add_node(node, **G1.nodes[node])
-            # Check if the node has any incoming edges in G1
-            parent = node
-            # if no edges in node the parent is its self
-            for edge in G1.in_edges(node):
-                    parent = edge[0]
-            # update the node with `parent`
-            G2.nodes[node]['parent'] = parent
-            G2.nodes[node]['id'] = node
+        # Add the node to G2, copying over the attributes
+        G2.add_node(node, **G1.nodes[node])
+        # Check if the node has any incoming edges in G1
+        parent = node
+        # if no edges in node the parent is its self
+        for edge in G1.in_edges(node):
+                parent = edge[0]
+        # update the node with `parent`
+        G2.nodes[node]['parent'] = parent
+        G2.nodes[node]['id'] = node
     return G2
 
 def create_candidate_graph(file_name):
@@ -142,10 +142,8 @@ def create_candidate_graph(file_name):
         root = provide_root(merge_tree_nex)
         iter_list_B = iterate_tree(merge_tree_nex,root[0])
         # iterate two merge_tree and connect new edges
-        for a in iter_list_A:
-            sub_a = iterate_tree(merge_tree_pre,a)
+        for a in iter_list_A: 
             for b in iter_list_B: 
-                sub_b = iterate_tree(merge_tree_nex,b)
                 # create edges for connecting the node a in merge tree merge_pre and node a in merge tree merge_nex
                 count = connect_edge(a,b,merge_tree_pre,merge_tree_nex,ids_pre,ids_nex,pairs,counts)
                 # add edegs
