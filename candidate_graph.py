@@ -124,16 +124,7 @@ def create_candidate_graph(file_name):
         # find overlaping pairs
         pairs, counts = overlap (fragments[pre], fragments[nex]) 
         # pairs is label not the ID!!!!
-
-        '''
-        for (label_pre, label_nex), count in zip(pairs, counts):
-            id_pre = ids_pre[int(label_pre-1)]
-            id_nex = ids_nex[int(label_nex-1)]
-            graph_fragments.add_edge(id_nex, id_pre, source = id_nex, target = id_pre, overlap = count)
-
-        '''
-        
-        
+           
         # iterate tree to extract edge
         
         root = provide_root(merge_tree_pre)
