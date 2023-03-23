@@ -144,7 +144,7 @@ def get_merge_graph(candidate_graph, t):
     for nid in nodes:
         node = candidate_graph.nodes[nid]
         if nid not in g:
-            g.add_nodes_from(node)
+            g.add_node(nid,**candidate_graph.nodes[nid])
         if node['parent'] != nid and node['id']:   
         # determine a root as node['parent'] = nid in candidate_graph func add_nodes_from_merge_tree()
             g.add_edge(nid, node['parent'])
