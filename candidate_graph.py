@@ -142,18 +142,16 @@ def create_candidate_graph(file_name):
         root = provide_root(merge_tree_nex)
         iter_list_B = iterate_tree(merge_tree_nex,root[0])
         # iterate two merge_tree and connect new edges
-        for a in iter_list_A:
-            sub_a = iterate_tree(merge_tree_pre,a)
-            for b in iter_list_B: 
-                sub_b = iterate_tree(merge_tree_nex,b)
+        for A in iter_list_A:
+            for B in iter_list_B: 
                 # create edges for connecting the node a in merge tree merge_pre and node a in merge tree merge_nex
-                count = connect_edge(a,b,merge_tree_pre,merge_tree_nex,ids_pre,ids_nex,pairs,counts)
+                count = connect_edge(A,B,merge_tree_pre,merge_tree_nex,ids_pre,ids_nex,pairs,counts)
                 # add edegs
                 if count != 0:
-                    graph_fragments.add_edge(b, a, source = b, target = a, overlap = count)
-                    print('add',a,b , 'count',count)
+                    graph_fragments.add_edge(B, A, source = B, target = A, overlap = count)
+                    #print('add',a,b , 'count',count)
 
-                    print(" iterating time: ", time.time() - start_time)
+        print(" iterating one merge tree cost: ", time.time() - start_time)
     
     #nx.write_gexf(graph_fragments, "anno_alice_T2030_candidategrah.gexf")
     print('The candidate graph was saved and it cost:',time.time() - start_time)

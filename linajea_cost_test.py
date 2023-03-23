@@ -225,7 +225,7 @@ def get_constraints():
 if __name__ == "__main__":
     # test demo
     cells = [
-        {'id': 1, 't': 0, 'z': 1, 'y': 1, 'x': 2, 'score': 0.4, 'parent': None},
+        {'id': 1, 't': 0, 'z': 1, 'y': 1, 'x': 2, 'score': 0.4, 'parent': 1},
         {'id': 2, 't': 0, 'z': 1, 'y': 1, 'x': 1, 'score': 0.2, 'parent': 1},
         {'id': 3, 't': 0, 'z': 1, 'y': 1, 'x': 3, 'score': 0.2, 'parent': 1},
         {'id': 4, 't': 0, 'z': 1, 'y': 1, 'x': 0, 'score': 0, 'parent': 2},
@@ -236,7 +236,7 @@ if __name__ == "__main__":
     graph1.add_nodes_from([(cell['id'], cell) for cell in cells])
 
     cells = [
-        {'id': 6, 't': 1, 'z': 1, 'y': 1, 'x': 3, 'score': 0.4, 'parent': None},
+        {'id': 6, 't': 1, 'z': 1, 'y': 1, 'x': 3, 'score': 0.4, 'parent': 6},
         {'id': 7, 't': 1, 'z': 1, 'y': 1, 'x': 1, 'score': 1.0, 'parent': 6},
         {'id': 8, 't': 1, 'z': 1, 'y': 1, 'x': 3, 'score': 1.0, 'parent': 6},
         {'id': 9, 't': 1, 'z': 1, 'y': 1, 'x': 4, 'score': 1.0, 'parent': 6},
