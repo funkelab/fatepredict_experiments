@@ -14,7 +14,6 @@ import zarr
 from funlib.math import encode64
 from skimage.measure import regionprops
 
-#
 from write_to_db import create_cells_client
 
 def segment_stats(fragments, t):
