@@ -126,8 +126,8 @@ def extract_edges_blockwise(linajea_config):
                     # add edegs
                     if count != 0:
                         graph.add_edge(b, a, source = b, target = a, overlap = count)
-                        graph.add_node_from(merge_tree_pre[a])
-                        graph.add_node_from(merge_tree_nex[b])
+                        #graph.add_node_from(merge_tree_pre[a])
+                        #graph.add_node_from(merge_tree_nex[b])
             
             graph.write_edges(block.write_roi)
 

@@ -133,13 +133,8 @@ def create_candidate_graph(file_name):
         root = provide_root(merge_tree_nex)
         iter_list_B = iterate_tree(merge_tree_nex,root[0])
         # iterate two merge_tree and connect new edges
-<<<<<<< HEAD
-        for a in iter_list_A: 
-            for b in iter_list_B: 
-=======
         for A in iter_list_A:
             for B in iter_list_B: 
->>>>>>> d1d79fecdadc780b7028e05606e84ccd4911de1c
                 # create edges for connecting the node a in merge tree merge_pre and node a in merge tree merge_nex
                 count = connect_edge(A,B,merge_tree_pre,merge_tree_nex,ids_pre,ids_nex,pairs,counts)
                 # add edegs
