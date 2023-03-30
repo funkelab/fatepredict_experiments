@@ -1,16 +1,12 @@
 import zarr
 import daisy
-import numpy as np
 import time
 import networkx as nx
-from linajea_cost_test import get_merge_graph_from_array
-from funlib.math import encode64, decode64
+import numpy as np
 import linajea
-from linajea_cost_test import get_edge_indicator_costs, get_node_indicator_costs, get_constraints
-
-
-import time
 import logging
+from linajea_cost_test import get_merge_graph_from_array, get_edge_indicator_costs, get_node_indicator_costs, get_constraints
+from funlib.math import encode64, decode64
 
 logger = logging.getLogger(__name__)
 
