@@ -22,19 +22,23 @@ cd <your clone repo dir>
 pip install -r fatepredict_experiments/requirements.txt 
 ```
 
-## TODO
-- [x] Watershed + Waterz script
-- [ ] Extracting edges between time points
-- [ ] Writing candidate graph to a Mongo DB
-- [ ] Apply `linajea` for tracking
-
 
 ## mango DB 
 MangoDB database for linux [Download :link:](https://www.mongodb.com/docs/manual/administration/install-community/)
 Set a local `db` [VSCODE extension :link:](https://code.visualstudio.com/docs/azure/mongodb)
 
-## Zarr structure
+## daisy for blockwise
 
+## Zarr structure
+use `segmentation.py`to create files in `.zarr`
+Generate zarr part:
+* Fragments
+* Merge_tree
+* Fragment_stats
+by `segmentation.py filename [-h] [-c CONFIG] [-n NAME] [--host HOST] [--port PORT] [--user USER] [--password PASSWORD] [--max_volume MAX_VOLUME] [--deploy]`
+e.g. ```python fatepredict_experiments/segmentation.py Alice_demo.zarr -n 'demo' --host 'localhost' --deploy ```
+
+The final zarr structure should be 
 * Raw (c,t,z,y,x)
 * Groundtruth_segmentation (t,z,y,x)
 * Fragment (t,z,y,x) -> Each fragment is unique
@@ -55,3 +59,4 @@ Set a local `db` [VSCODE extension :link:](https://code.visualstudio.com/docs/az
 * Tracks :star:
     * id -> segments' id
     * parents
+
