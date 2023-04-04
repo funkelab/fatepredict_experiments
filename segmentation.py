@@ -226,7 +226,7 @@ if __name__ == "__main__":
                         'x': int(position[3]),
                         'movement_vector': (0, 0, 0),
                         'parent': int(merge_parent),
-                        'volume': int(volume)
+                        'size': int(volume)
                     })
 
     if args.deploy:
