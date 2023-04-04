@@ -77,7 +77,7 @@ def connect_edge(A,B,merge_tree_pre,merge_tree_nex,ids_pre,ids_nex,pairs,counts)
                     index = ind[0].item()
                     count += counts[index]
 
-    return count/(A_area + B_area - count)
+    return count/(A_area + B_area - count) #iou
 
 def add_nodes_from_merge_tree(G1,G2):
     ''''
