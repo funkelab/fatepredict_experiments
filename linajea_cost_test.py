@@ -81,7 +81,7 @@ def get_node_indicator_costs(parameters, graph):
         "node_selected": [
             feature_times_weight_costs_fn(
                 parameters.weight_node_score,
-                key="score", feature_func=feature_func),
+                key="score", feature_func=feature_func), #change the key = 'size' for set the score
             constant_costs_fn(parameters.selection_constant)],
         "node_appear": [
             constant_costs_fn(
@@ -212,7 +212,6 @@ def set_conflict_sets(graph, indicators):
 
 
 def get_constraints():
-    # TODO get_constraints from config
     pin_constraints_fn_list = [ensure_pinned_edge]
     constraints_fn_list = [ensure_edge_endpoints,
                            ensure_one_predecessor,
